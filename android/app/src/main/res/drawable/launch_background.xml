@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 透明启动画面，让 Flutter 启动页成为唯一可见的启动界面 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@android:color/white" />
+    <!-- 不显示任何内容，直接显示 Flutter 启动页 -->
+</layer-list>
