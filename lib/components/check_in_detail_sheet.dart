@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/room_check_in.dart';
 import '../room_colors.dart';
+import '../services/room_service.dart';
 
 /// 入住详情底部抽屉弹窗组件
-class CheckInDetailSheet extends StatelessWidget {
+class CheckInDetailSheet extends StatefulWidget {
   final RoomCheckIn checkIn;
   final List<CheckInHistory> historyCheckIns;
   final VoidCallback? onCheckOut;
@@ -45,6 +47,26 @@ class CheckInDetailSheet extends StatelessWidget {
       ),
     );
   }
+
+  @override
+  State<CheckInDetailSheet> createState() => _CheckInDetailSheetState();
+}
+
+class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
+  late RoomCheckIn checkIn;
+  late List<CheckInHistory> historyCheckIns;
+
+  @override
+  void initState() {
+    super.initState();
+    checkIn = widget.checkIn;
+    historyCheckIns = widget.historyCheckIns;
+  }
+
+  VoidCallback? get onCheckOut => widget.onCheckOut;
+  VoidCallback? get onChangeRoom => widget.onChangeRoom;
+  bool get showCheckOutButton => widget.showCheckOutButton;
+  bool get showChangeRoomButton => widget.showChangeRoomButton;
 
   @override
   Widget build(BuildContext context) {
@@ -132,12 +154,25 @@ class CheckInDetailSheet extends StatelessWidget {
                                   _buildDetailGridItem('用户ID', '${checkIn.userId}'),
                                   _buildDetailGridItem('姓名', checkIn.cname),
                                   _buildDetailGridItem('性别', checkIn.genderDisplayName),
-                                  _buildDetailGridItem('电话', checkIn.cphone),
+                                  _buildDetailGridItem(
+                                    '电话',
+                                    checkIn.cphone,
+                                    onTap: () async {
+                                      final phoneNumber = checkIn.cphone;
+                                      if (phoneNumber != null && phoneNumber.isNotEmpty) {
+                                        final telUrl = 'tel:$phoneNumber';
+                                        if (await canLaunchUrl(Uri.parse(telUrl))) {
+                                          await launchUrl(Uri.parse(telUrl));
+                                        }
+                                      }
+                                    },
+                                  ),
                                   _buildDetailGridItem('年龄', checkIn.cage?.toString() ?? '-'),
                                 ]),
                                 const SizedBox(height: 16),
                                 // 入住信息卡片
                                 _buildDetailCard('入住信息', [
+                                  _buildDetailGridItem('入住ID', '${checkIn.id}'),
                                   _buildDetailGridItem('区域', checkIn.areaDisplayName),
                                   _buildDetailGridItem('房间号', checkIn.roomNumber),
                                   _buildDetailGridItem('床位号', '${checkIn.bedNumber}号'),
@@ -421,8 +456,8 @@ class CheckInDetailSheet extends StatelessWidget {
   }
 
   /// 构建详情网格项
-  Widget _buildDetailGridItem(String label, String value) {
-    return Container(
+  Widget _buildDetailGridItem(String label, String value, {VoidCallback? onTap}) {
+    final content = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: RoomColors.background,
@@ -444,7 +479,7 @@ class CheckInDetailSheet extends StatelessWidget {
             value,
             style: TextStyle(
               fontSize: 13,
-              color: RoomColors.textPrimary,
+              color: onTap != null ? RoomColors.primary : RoomColors.textPrimary,
               fontWeight: FontWeight.w600,
             ),
             maxLines: 1,
@@ -453,6 +488,15 @@ class CheckInDetailSheet extends StatelessWidget {
         ],
       ),
     );
+
+    if (onTap != null) {
+      return GestureDetector(
+        onTap: onTap,
+        child: content,
+      );
+    }
+
+    return content;
   }
 
   /// 格式化时间
@@ -679,26 +723,174 @@ class CheckInDetailSheet extends StatelessWidget {
 
   /// 构建备注 Tab
   Widget _buildRemarksTab() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.note_outlined,
-            size: 48,
-            color: RoomColors.textGrey.withOpacity(0.5),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            '暂无备注信息',
-            style: TextStyle(
-              fontSize: 14,
-              color: RoomColors.textGrey,
+    final hasRemark = checkIn.remark != null && checkIn.remark!.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: hasRemark
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '当前备注',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: RoomColors.textPrimary,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => _showEditRemarkDialog(),
+                      icon: Icon(Icons.edit, size: 16, color: RoomColors.primary),
+                      label: Text(
+                        '编辑',
+                        style: TextStyle(color: RoomColors.primary),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: RoomColors.background,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    checkIn.remark!,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: RoomColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.note_add_outlined,
+                    size: 48,
+                    color: RoomColors.textGrey.withOpacity(0.5),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '暂无备注信息',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: RoomColors.textGrey,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () => _showEditRemarkDialog(),
+                    icon: Icon(Icons.add, color: Colors.white),
+                    label: Text('添加备注'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: RoomColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
+    );
+  }
+
+  /// 显示编辑备注对话框
+  void _showEditRemarkDialog() {
+    final TextEditingController controller = TextEditingController(
+      text: checkIn.remark ?? '',
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(checkIn.remark != null && checkIn.remark!.isNotEmpty ? '编辑备注' : '添加备注'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: InputDecoration(
+            hintText: '请输入备注内容',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            contentPadding: const EdgeInsets.all(12),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newRemark = controller.text.trim();
+              Navigator.pop(context);
+              await _updateRemark(newRemark);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: RoomColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('保存'),
           ),
         ],
       ),
     );
+  }
+
+  /// 更新备注
+  Future<void> _updateRemark(String remark) async {
+    try {
+      final response = await RoomService.updateCheckInRemark(checkIn.id, remark);
+      if (response.isSuccess) {
+        // 更新本地数据
+        setState(() {
+          checkIn = RoomCheckIn(
+            id: checkIn.id,
+            roomId: checkIn.roomId,
+            roomArea: checkIn.roomArea,
+            roomNumber: checkIn.roomNumber,
+            userId: checkIn.userId,
+            bedNumber: checkIn.bedNumber,
+            checkInTime: checkIn.checkInTime,
+            checkOutTime: checkIn.checkOutTime,
+            status: checkIn.status,
+            remark: remark,
+            cname: checkIn.cname,
+            cgender: checkIn.cgender,
+            cphone: checkIn.cphone,
+            cage: checkIn.cage,
+            purpose: checkIn.purpose,
+            emergencyContactName: checkIn.emergencyContactName,
+            emergencyContactRelation: checkIn.emergencyContactRelation,
+            emergencyContactPhone: checkIn.emergencyContactPhone,
+          );
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('备注更新成功')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('备注更新失败: ${response.message}')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('更新失败: $e')),
+      );
+    }
   }
 
   /// 构建操作按钮

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/api_response.dart';
 import '../models/app_version.dart';
 import '../models/room.dart';
 import '../models/room_check_in.dart';
@@ -451,6 +452,38 @@ class RoomService {
         code: 500,
         data: [],
         message: '网络错误: $e',
+      );
+    }
+  }
+
+  // 更新入住备注
+  static Future<ApiResponse<void>> updateCheckInRemark(int checkInId, String remark) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/api/room-check-ins/$checkInId'),
+        headers: _getHeaders(),
+        body: json.encode({'remark': remark}),
+      );
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        return ApiResponse<void>(
+          code: jsonData['code'] ?? 200,
+          message: jsonData['message'] ?? '更新成功',
+          data: null,
+        );
+      } else {
+        return ApiResponse<void>(
+          code: response.statusCode,
+          message: '更新失败: ${response.statusCode}',
+          data: null,
+        );
+      }
+    } catch (e) {
+      return ApiResponse<void>(
+        code: 500,
+        message: '网络错误: $e',
+        data: null,
       );
     }
   }

@@ -17,8 +17,11 @@ class CurrentCheckInsPage extends StatefulWidget {
 
 class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
   List<RoomCheckIn> _checkIns = [];
+  List<RoomCheckIn> _filteredCheckIns = [];
   bool _isLoading = true;
   String _errorMessage = '';
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
 
   //头像显示变量
   bool _showAvatar = false; // false = 隐藏, true = 显示
@@ -27,6 +30,36 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _filterCheckIns(String query) {
+    if (query.isEmpty) {
+      setState(() {
+        _filteredCheckIns = _checkIns;
+      });
+      return;
+    }
+
+    final lowerQuery = query.toLowerCase();
+    setState(() {
+      _filteredCheckIns = _checkIns.where((checkIn) {
+        // 搜索姓名
+        if (checkIn.cname.toLowerCase().contains(lowerQuery)) return true;
+        // 搜索电话
+        if (checkIn.cphone.toLowerCase().contains(lowerQuery)) return true;
+        // 搜索身份证（userId）
+        if (checkIn.userId.toString().contains(lowerQuery)) return true;
+        // 搜索备注
+        if (checkIn.remark?.toLowerCase().contains(lowerQuery) ?? false) return true;
+        return false;
+      }).toList();
+    });
   }
 
   Future<void> _loadData() async {
@@ -40,7 +73,18 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
     setState(() {
       _isLoading = false;
       if (response.isSuccess) {
-        _checkIns = response.data;
+        // 按入住时间倒序排列（最新的在前面）
+        final sortedData = List<RoomCheckIn>.from(response.data)
+          ..sort((a, b) => b.checkInTime.compareTo(a.checkInTime));
+        
+        // 打印调试信息
+        print('=== 排序后的数据 ===');
+        for (var i = 0; i < sortedData.length && i < 5; i++) {
+          print('${i + 1}. ${sortedData[i].cname} - ${sortedData[i].checkInTime}');
+        }
+        
+        _checkIns = sortedData;
+        _filteredCheckIns = sortedData;
       } else {
         _errorMessage = response.message;
       }
@@ -55,20 +99,49 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
         backgroundColor: RoomColors.cardBg,
         elevation: 0,
         iconTheme: IconThemeData(color: RoomColors.textPrimary),
-        title: Text(
-          '在寺人员',
-          style: TextStyle(
-            color: RoomColors.textPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
+        title: _isSearching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: '搜索姓名、电话、身份证、备注',
+                  hintStyle: TextStyle(color: RoomColors.textSecondary, fontSize: 14),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                style: TextStyle(color: RoomColors.textPrimary, fontSize: 16),
+                onChanged: _filterCheckIns,
+              )
+            : Text(
+                '在寺人员',
+                style: TextStyle(
+                  color: RoomColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+        actions: [
+          IconButton(
+            icon: Icon(_isSearching ? Icons.close : Icons.search),
+            onPressed: () {
+              setState(() {
+                if (_isSearching) {
+                  _isSearching = false;
+                  _searchController.clear();
+                  _filterCheckIns('');
+                } else {
+                  _isSearching = true;
+                }
+              });
+            },
           ),
-        ),
+        ],
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator(color: RoomColors.primary))
           : _errorMessage.isNotEmpty
           ? _buildErrorView()
-          : _checkIns.isEmpty
+          : _filteredCheckIns.isEmpty
           ? _buildEmptyView()
           : _buildListView(),
     );
@@ -114,14 +187,20 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
       color: RoomColors.primary,
       displacement: 60,
       strokeWidth: 2.5,
-      child: ListView.builder(
+      child: GridView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: _checkIns.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 1.5,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+        ),
+        itemCount: _filteredCheckIns.length,
         itemBuilder: (context, index) {
-          final checkIn = _checkIns[index];
-          // 倒序序号（列表最后一个是1，第一个是总数）
-          final reverseIndex = _checkIns.length - index;
-          return _buildCheckInItem(checkIn, reverseIndex);
+          final checkIn = _filteredCheckIns[index];
+          // 倒序序号（最新的显示最大编号）
+          final itemIndex = _filteredCheckIns.length - index;
+          return _buildCheckInItem(checkIn, itemIndex);
         },
       ),
     );
@@ -134,7 +213,6 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
     return GestureDetector(
       onTap: () => _showCheckInDetail(checkIn),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
         decoration: BoxDecoration(
           color: RoomColors.cardBg,
           borderRadius: BorderRadius.circular(8),
@@ -144,109 +222,81 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
             Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 姓名、性别标签
                   Row(
                     children: [
-                      // 使用条件判断控制头像显示
-                      if (_showAvatar) ...[
-                        // 头像（性别图标）
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: checkIn.genderColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                          child: Center(
-                            child: Icon(
+                      // 姓名
+                      Text(
+                        checkIn.cname,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: RoomColors.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(width: 8),
+                      // 性别标签
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: checkIn.genderColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
                               checkIn.cgender == 'male'
-                                  ? Icons.person
-                                  : Icons.person,
-                              size: 28,
+                                  ? Icons.male
+                                  : Icons.female,
+                              size: 12,
                               color: checkIn.genderColor,
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // 姓名、性别标签
-                            Row(
-                              children: [
-                                // 姓名
-                                Text(
-                                  checkIn.cname,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: RoomColors.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                // 性别标签
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: checkIn.genderColor.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        checkIn.cgender == 'male'
-                                            ? Icons.male
-                                            : Icons.female,
-                                        size: 12,
-                                        color: checkIn.genderColor,
-                                      ),
-                                      const SizedBox(width: 2),
-                                      Text(
-                                        checkIn.genderDisplayName,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: checkIn.genderColor,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            // 手机号
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.phone_outlined,
-                                  size: 14,
-                                  color: RoomColors.textSecondary,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  checkIn.cphone,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: RoomColors.textSecondary,
-                                  ),
-                                ),
-                              ],
+                            const SizedBox(width: 2),
+                            Text(
+                              checkIn.genderDisplayName,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: checkIn.genderColor,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                      // 占位，给右上角标签留空间
-                      const SizedBox(width: 50),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
+                  // 手机号
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.phone_outlined,
+                        size: 14,
+                        color: RoomColors.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          checkIn.cphone,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: RoomColors.textSecondary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
                   // 底部信息栏
                   Row(
                     children: [
@@ -281,42 +331,16 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // 床位号（颜色和区域一致）
+                      // 已入住天数标签
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: RoomColors.background,
+                          color: RoomColors.primary.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.bed_outlined,
-                              size: 12,
-                              color: RoomColors.textSecondary,
-                            ),
-                            const SizedBox(width: 2),
-                            Text(
-                              '${checkIn.bedNumber}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: RoomColors.textSecondary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        '入住: ${_formatDate(checkIn.checkInTime)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: RoomColors.textGrey,
+                        child: Text(
+                          days == 0 ? '今天' : '${days}天',
+                          style: TextStyle(fontSize: 11, color: RoomColors.primary),
                         ),
                       ),
                     ],
@@ -324,19 +348,16 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
                 ],
               ),
             ),
-            // 已入住天数标签 - 右上角
+            // 序号标签 - 右上角（纯文本，无背景）
             Positioned(
-              top: 12,
-              right: 12,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: RoomColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  days == 0 ? '今天' : '${days}天',
-                  style: TextStyle(fontSize: 11, color: RoomColors.primary),
+              top: 8,
+              right: 8,
+              child: Text(
+                '#$index',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: RoomColors.textGrey,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
@@ -344,10 +365,6 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
         ),
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.month}/${date.day}';
   }
 
   void _showCheckInDetail(RoomCheckIn checkIn) async {
