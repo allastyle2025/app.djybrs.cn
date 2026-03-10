@@ -1,5 +1,29 @@
 import 'package:flutter/material.dart';
 
+// 获取区域显示名称的公共方法
+String getAreaDisplayName(String roomArea) {
+  switch (roomArea) {
+    case 'hy':
+      return '华严殿';
+    case 'yd':
+      return '圆通殿';
+    case 'be':
+      return '报恩';
+    case 'zts':
+      return '斋堂上';
+    case 'ktx':
+      return '客堂下';
+    case 'cz':
+      return '常住';
+    case 'ld':
+      return '老殿';
+    case 'other':
+      return '其他';
+    default:
+      return roomArea;
+  }
+}
+
 class RoomCheckIn {
   final int id;
   final int roomId;
@@ -88,28 +112,7 @@ class RoomCheckIn {
   }
 
   // 获取区域显示名称
-  String get areaDisplayName {
-    switch (roomArea) {
-      case 'hy':
-        return '华严殿';
-      case 'yd':
-        return '圆通殿';
-      case 'be':
-        return '报恩';
-      case 'zts':
-        return '斋堂上';
-      case 'ktx':
-        return '客堂下';
-      case 'cz':
-        return '常住';
-      case 'ld':
-        return '老殿';
-      case 'other':
-        return '其他';
-      default:
-        return roomArea;
-    }
-  }
+  String get areaDisplayName => getAreaDisplayName(roomArea);
 
   // 获取性别显示文本
   String get genderDisplayName {
@@ -193,18 +196,7 @@ class CheckInHistory {
   }
 
   // 获取区域显示名称
-  String get areaDisplayName {
-    switch (roomArea) {
-      case 'hy':
-        return '华严殿';
-      case 'yd':
-        return '圆通殿';
-      case 'other':
-        return '其他';
-      default:
-        return roomArea;
-    }
-  }
+  String get areaDisplayName => getAreaDisplayName(roomArea);
 
   // 获取状态显示文本
   String get statusDisplayName {

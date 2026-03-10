@@ -488,6 +488,70 @@ class RoomService {
     }
   }
 
+  // 更新入住身份
+  static Future<ApiResponse<void>> updateCheckInPurpose(int checkInId, String purpose) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/api/room-check-ins/$checkInId'),
+        headers: _getHeaders(),
+        body: json.encode({'purpose': purpose}),
+      );
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        return ApiResponse<void>(
+          code: jsonData['code'] ?? 200,
+          message: jsonData['message'] ?? '更新成功',
+          data: null,
+        );
+      } else {
+        return ApiResponse<void>(
+          code: response.statusCode,
+          message: '更新失败: ${response.statusCode}',
+          data: null,
+        );
+      }
+    } catch (e) {
+      return ApiResponse<void>(
+        code: 500,
+        message: '网络错误: $e',
+        data: null,
+      );
+    }
+  }
+
+  // 更新入住时间
+  static Future<ApiResponse<void>> updateCheckInTime(int checkInId, DateTime checkInTime) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/api/room-check-ins/$checkInId'),
+        headers: _getHeaders(),
+        body: json.encode({'checkInTime': checkInTime.toIso8601String()}),
+      );
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        return ApiResponse<void>(
+          code: jsonData['code'] ?? 200,
+          message: jsonData['message'] ?? '更新成功',
+          data: null,
+        );
+      } else {
+        return ApiResponse<void>(
+          code: response.statusCode,
+          message: '更新失败: ${response.statusCode}',
+          data: null,
+        );
+      }
+    } catch (e) {
+      return ApiResponse<void>(
+        code: 500,
+        message: '网络错误: $e',
+        data: null,
+      );
+    }
+  }
+
   // 检查应用更新
   static Future<AppVersionResponse> checkUpdate(String currentVersion) async {
     try {

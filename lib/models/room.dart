@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../room_colors.dart';
 
 class Room {
   final int id;
@@ -122,20 +123,30 @@ class Room {
 
   // 获取状态显示名称
   String get statusDisplayName {
-    switch (status) {
-      case 'available':
-        return '可入住';
-      case 'full':
-        return '已满';
-      case 'maintenance':
-        return '维修中';
-      default:
-        return status;
-    }
+    if (status == 'maintenance') {
+      return '维修中';
+    }else if (availableBeds > 0) {
+      return '可入住';
+    } else if (roomBeds > 0 && availableBeds == 0) {
+      return '已满';
+    } 
+    return '空房';
   }
 
   // 是否已满（有床位且没有空床位才算满）
   bool get isFull => roomBeds > 0 && availableBeds == 0;
+
+  // 获取状态颜色
+  Color get statusColor {
+    if (isFull) {
+      return const Color(0xFFE53935); // 红色
+    } else if (status == 'maintenance') {
+      return const Color(0xFFF57C00); // 橙色/黄色
+    } else if (availableBeds > 0) {
+      return RoomColors.available;
+    }
+    return RoomColors.textSecondary;
+  }
 
   // 是否空房
   bool get isEmpty => availableBeds == totalCapacity;

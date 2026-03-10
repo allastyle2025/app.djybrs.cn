@@ -10,6 +10,7 @@ class CheckInDetailSheet extends StatefulWidget {
   final List<CheckInHistory> historyCheckIns;
   final VoidCallback? onCheckOut;
   final VoidCallback? onChangeRoom;
+  final VoidCallback? onPurposeUpdated;
   final bool showCheckOutButton;
   final bool showChangeRoomButton;
 
@@ -19,6 +20,7 @@ class CheckInDetailSheet extends StatefulWidget {
     this.historyCheckIns = const [],
     this.onCheckOut,
     this.onChangeRoom,
+    this.onPurposeUpdated,
     this.showCheckOutButton = true,
     this.showChangeRoomButton = true,
   });
@@ -30,6 +32,7 @@ class CheckInDetailSheet extends StatefulWidget {
     List<CheckInHistory> historyCheckIns = const [],
     VoidCallback? onCheckOut,
     VoidCallback? onChangeRoom,
+    VoidCallback? onPurposeUpdated,
     bool showCheckOutButton = true,
     bool showChangeRoomButton = true,
   }) {
@@ -42,6 +45,7 @@ class CheckInDetailSheet extends StatefulWidget {
         historyCheckIns: historyCheckIns,
         onCheckOut: onCheckOut,
         onChangeRoom: onChangeRoom,
+        onPurposeUpdated: onPurposeUpdated,
         showCheckOutButton: showCheckOutButton,
         showChangeRoomButton: showChangeRoomButton,
       ),
@@ -55,16 +59,25 @@ class CheckInDetailSheet extends StatefulWidget {
 class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
   late RoomCheckIn checkIn;
   late List<CheckInHistory> historyCheckIns;
+  late Future<void> _loadDataFuture;
+  bool _isExpanded = false;
 
   @override
   void initState() {
     super.initState();
     checkIn = widget.checkIn;
     historyCheckIns = widget.historyCheckIns;
+    _loadDataFuture = _loadData();
+  }
+
+  Future<void> _loadData() async {
+    // 模拟加载延迟，让加载效果更明显
+    await Future.delayed(const Duration(milliseconds: 300));
   }
 
   VoidCallback? get onCheckOut => widget.onCheckOut;
   VoidCallback? get onChangeRoom => widget.onChangeRoom;
+  VoidCallback? get onPurposeUpdated => widget.onPurposeUpdated;
   bool get showCheckOutButton => widget.showCheckOutButton;
   bool get showChangeRoomButton => widget.showChangeRoomButton;
 
@@ -74,141 +87,260 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
     final days = DateTime.now().difference(checkIn.checkInTime).inDays;
 
     return SafeArea(
-      child: Container(
-        height: MediaQuery.of(context).size.height * 0.8,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: RoomColors.cardBg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 拖动条
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: RoomColors.divider,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+      child: FutureBuilder<void>(
+        future: _loadDataFuture,
+        builder: (context, snapshot) {
+          final isLoading = snapshot.connectionState == ConnectionState.waiting;
+
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.8,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: RoomColors.cardBg,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
               ),
             ),
-            const SizedBox(height: 16),
-            // 卡片头部
-            _buildHeaderCard(days),
-            const SizedBox(height: 16),
-            // Tab 切换区域
-            Expanded(
-              child: DefaultTabController(
-                length: 3,
-                child: Column(
+            child: Stack(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Tab 标签栏
-                    Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: RoomColors.tabBg,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: TabBar(
-                        indicator: UnderlineTabIndicator(
-                          borderSide: BorderSide(
-                            color: RoomColors.primary,
-                            width: 3,
-                          ),
-                          insets: const EdgeInsets.symmetric(horizontal: 16),
+                    // 拖动条
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: RoomColors.divider,
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                        indicatorSize: TabBarIndicatorSize.label,
-                        dividerColor: Colors.transparent,
-                        labelColor: RoomColors.primary,
-                        unselectedLabelColor: RoomColors.tabNormal,
-                        labelStyle: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        unselectedLabelStyle: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.normal,
-                        ),
-                        tabAlignment: TabAlignment.fill,
-                        tabs: const [
-                          Tab(text: '详细信息'),
-                          Tab(text: '历史入住'),
-                          Tab(text: '备注'),
-                        ],
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // Tab 内容区域
+                    // 卡片头部（固定显示，不受加载影响）
+                    _buildHeaderCard(days),
+                    const SizedBox(height: 16),
+                    // Tab 切换区域
                     Expanded(
-                      child: TabBarView(
-                        children: [
-                          // 详细信息 Tab - 两列网格布局
-                          SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                // 基本信息卡片
-                                _buildDetailCard('基本信息', [
-                                  _buildDetailGridItem('用户ID', '${checkIn.userId}'),
-                                  _buildDetailGridItem('姓名', checkIn.cname),
-                                  _buildDetailGridItem('性别', checkIn.genderDisplayName),
-                                  _buildDetailGridItem(
-                                    '电话',
-                                    checkIn.cphone,
-                                    onTap: () async {
-                                      final phoneNumber = checkIn.cphone;
-                                      if (phoneNumber != null && phoneNumber.isNotEmpty) {
-                                        final telUrl = 'tel:$phoneNumber';
-                                        if (await canLaunchUrl(Uri.parse(telUrl))) {
-                                          await launchUrl(Uri.parse(telUrl));
-                                        }
-                                      }
-                                    },
+                      child: isLoading
+                          ? _buildLoadingView()
+                          : DefaultTabController(
+                              length: 3,
+                              child: Column(
+                                children: [
+                                  // Tab 标签栏
+                                  Container(
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: BoxDecoration(
+                                      color: RoomColors.tabBg,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: TabBar(
+                                      indicator: UnderlineTabIndicator(
+                                        borderSide: BorderSide(
+                                          color: RoomColors.primary,
+                                          width: 3,
+                                        ),
+                                        insets: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                        ),
+                                      ),
+                                      indicatorSize: TabBarIndicatorSize.label,
+                                      dividerColor: Colors.transparent,
+                                      labelColor: RoomColors.primary,
+                                      unselectedLabelColor: RoomColors.tabNormal,
+                                      labelStyle: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      unselectedLabelStyle: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.normal,
+                                      ),
+                                      tabAlignment: TabAlignment.fill,
+                                      tabs: const [
+                                        Tab(text: '详细信息'),
+                                        Tab(text: '备注'),
+                                        Tab(text: '历史入住'),
+                                      ],
+                                    ),
                                   ),
-                                  _buildDetailGridItem('年龄', checkIn.cage?.toString() ?? '-'),
-                                ]),
-                                const SizedBox(height: 16),
-                                // 入住信息卡片
-                                _buildDetailCard('入住信息', [
-                                  _buildDetailGridItem('入住ID', '${checkIn.id}'),
-                                  _buildDetailGridItem('区域', checkIn.areaDisplayName),
-                                  _buildDetailGridItem('房间号', checkIn.roomNumber),
-                                  _buildDetailGridItem('床位号', '${checkIn.bedNumber}号'),
-                                  _buildDetailGridItem('已入住', _calculateStayDays(checkIn.checkInTime)),
-                                ]),
-                                const SizedBox(height: 16),
-                                // 时间信息卡片
-                                _buildDetailCard('时间信息', [
-                                  _buildDetailGridItem('入住日期', _formatDate(checkIn.checkInTime)),
-                                  _buildDetailGridItem('入住时间', _formatTime(checkIn.checkInTime)),
-                                  if (checkIn.checkOutTime != null) ...[
-                                    _buildDetailGridItem('退房日期', _formatDate(checkIn.checkOutTime!)),
-                                    _buildDetailGridItem('退房时间', _formatTime(checkIn.checkOutTime!)),
-                                  ],
-                                ]),
-                              ],
+                                  const SizedBox(height: 16),
+                                  // Tab 内容区域
+                                  Expanded(
+                                    child: TabBarView(
+                                      children: [
+                                        // 详细信息 Tab - 两列网格布局
+                                        SingleChildScrollView(
+                                          child: Column(
+                                            children: [
+                                              // 基本信息卡片
+                                              _buildDetailCard('基本信息', [
+                                                _buildDetailGridItem(
+                                                  '姓名',
+                                                  checkIn.cname,
+                                                ),
+                                                _buildDetailGridItem(
+                                                  '身份',
+                                                  _mapPurposeToDisplay(checkIn.purpose),
+                                                  onTap: () => _showPurposeEditDialog(),
+                                                ),
+                                                _buildDetailGridItem(
+                                                  '电话',
+                                                  _formatPhoneNumber(checkIn.cphone),
+                                                  onTap: () => _showCallConfirmDialog(checkIn.cphone),
+                                                ),
+
+                                              ]),
+                                              const SizedBox(height: 16),
+                                              // 入住信息卡片
+                                              _buildDetailCard('入住信息', [
+                                                _buildDetailGridItem(
+                                                  '位置',
+                                                  '${checkIn.areaDisplayName}-${checkIn.roomNumber}',
+                                                ),
+                                                _buildDetailGridItem(
+                                                  '床位号',
+                                                  '${checkIn.bedNumber}号',
+                                                ),
+                                                _buildDetailGridItem(
+                                                  '已入住',
+                                                  _calculateStayDays(
+                                                    checkIn.checkInTime,
+                                                  ),
+                                                ),
+                                                _buildDetailGridItem(
+                                                  '入住时间',
+                                                  '${_formatDate(checkIn.checkInTime)} ${_formatTime(checkIn.checkInTime)}',
+                                                  onTap: () => _showCheckInTimeEditDialog(),
+                                                ),
+                                                if (checkIn.checkOutTime !=
+                                                    null) ...[
+                                                  _buildDetailGridItem(
+                                                    '退床时间',
+                                                    '${_formatDate(checkIn.checkOutTime!)} ${_formatTime(checkIn.checkOutTime!)}',
+                                                  ),
+                                                ],
+                                              ]),
+                                              const SizedBox(height: 16),
+                                              // 系统信息卡片
+                                              _buildDetailCard('系统信息', [
+                                                _buildDetailGridItem(
+                                                  '用户ID',
+                                                  '${checkIn.userId}',
+                                                ),
+                                                _buildDetailGridItem(
+                                                  '入住ID',
+                                                  '${checkIn.id}',
+                                                ),
+                                              ]),
+                                              const SizedBox(height: 80),
+                                            ],
+                                          ),
+                                        ),
+                                        // 备注 Tab
+                                        SingleChildScrollView(
+                                          child: _buildRemarksTab(),
+                                        ),
+                                        // 历史入住 Tab
+                                        _buildHistoryTab(),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          // 历史入住 Tab
-                          _buildHistoryTab(),
-                          // 备注 Tab
-                          SingleChildScrollView(
-                            child: _buildRemarksTab(),
-                          ),
-                        ],
-                      ),
                     ),
                   ],
                 ),
-              ),
+                // 右下角悬浮更多按钮
+                Positioned(
+                  bottom: 16,
+                  right: 16,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 展开的按钮
+                      if (_isExpanded) ...[
+                        // 退床按钮
+                        if (showCheckOutButton) ...[
+                          FloatingActionButton.extended(
+                            onPressed: () {
+                              setState(() {
+                                _isExpanded = false;
+                              });
+                              onCheckOut?.call();
+                            },
+                            heroTag: 'check_out',
+                            backgroundColor: RoomColors.occupied,
+                            foregroundColor: Colors.white,
+                            label: const Text('退床'),
+                            icon: const Icon(Icons.exit_to_app),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        // 换房按钮
+                        if (showChangeRoomButton) ...[
+                          FloatingActionButton.extended(
+                            onPressed: () {
+                              setState(() {
+                                _isExpanded = false;
+                              });
+                              onChangeRoom?.call();
+                            },
+                            heroTag: 'change_room',
+                            backgroundColor: RoomColors.primary,
+                            foregroundColor: Colors.white,
+                            label: const Text('换房'),
+                            icon: const Icon(Icons.swap_horiz),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                      ],
+                      // 主按钮
+                      FloatingActionButton(
+                        onPressed: () {
+                          setState(() {
+                            _isExpanded = !_isExpanded;
+                          });
+                        },
+                        heroTag: 'more',
+                        backgroundColor: RoomColors.primary,
+                        foregroundColor: Colors.white,
+                        elevation: 4,
+                        child: Icon(_isExpanded ? Icons.close : Icons.more_vert),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            // 按钮区域
-            _buildActionButtons(context),
-          ],
-        ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// 构建加载视图
+  Widget _buildLoadingView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: RoomColors.primary, strokeWidth: 3),
+          const SizedBox(height: 16),
+          Text(
+            '加载中...',
+            style: TextStyle(fontSize: 14, color: RoomColors.textSecondary),
+          ),
+        ],
       ),
     );
   }
@@ -266,7 +398,10 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: checkIn.genderColor.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(4),
@@ -275,7 +410,9 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                checkIn.cgender == 'male' ? Icons.male : Icons.female,
+                                checkIn.cgender == 'male'
+                                    ? Icons.male
+                                    : Icons.female,
                                 size: 12,
                                 color: checkIn.genderColor,
                               ),
@@ -288,6 +425,17 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
+                              if (checkIn.cage != null) ...[
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${checkIn.cage}岁',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: RoomColors.textSecondary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -304,7 +452,7 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          checkIn.cphone,
+                          _formatPhoneNumber(checkIn.cphone),
                           style: TextStyle(
                             fontSize: 13,
                             color: RoomColors.textSecondary,
@@ -324,10 +472,7 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                 ),
                 child: Text(
                   days == 0 ? '今天' : '${days}天',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: RoomColors.primary,
-                  ),
+                  style: TextStyle(fontSize: 11, color: RoomColors.primary),
                 ),
               ),
             ],
@@ -392,10 +537,7 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
               const Spacer(),
               Text(
                 '入住: ${_formatDate(checkIn.checkInTime)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: RoomColors.textGrey,
-                ),
+                style: TextStyle(fontSize: 12, color: RoomColors.textGrey),
               ),
             ],
           ),
@@ -456,7 +598,11 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
   }
 
   /// 构建详情网格项
-  Widget _buildDetailGridItem(String label, String value, {VoidCallback? onTap}) {
+  Widget _buildDetailGridItem(
+    String label,
+    String value, {
+    VoidCallback? onTap,
+  }) {
     final content = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -469,17 +615,16 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
         children: [
           Text(
             label,
-            style: TextStyle(
-              fontSize: 10,
-              color: RoomColors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 10, color: RoomColors.textSecondary),
           ),
           const SizedBox(height: 1),
           Text(
             value,
             style: TextStyle(
               fontSize: 13,
-              color: onTap != null ? RoomColors.primary : RoomColors.textPrimary,
+              color: onTap != null
+                  ? RoomColors.primary
+                  : RoomColors.textPrimary,
               fontWeight: FontWeight.w600,
             ),
             maxLines: 1,
@@ -490,10 +635,7 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
     );
 
     if (onTap != null) {
-      return GestureDetector(
-        onTap: onTap,
-        child: content,
-      );
+      return GestureDetector(onTap: onTap, child: content);
     }
 
     return content;
@@ -519,10 +661,7 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
             const SizedBox(height: 16),
             Text(
               '暂无历史入住记录',
-              style: TextStyle(
-                fontSize: 14,
-                color: RoomColors.textGrey,
-              ),
+              style: TextStyle(fontSize: 14, color: RoomColors.textGrey),
             ),
           ],
         ),
@@ -575,7 +714,10 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: isCheckedOut
                               ? RoomColors.textSecondary.withOpacity(0.1)
@@ -583,11 +725,13 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          isCheckedOut ? '已退房' : '在住',
+                          isCheckedOut ? '已退床位' : '在住',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
-                            color: isCheckedOut ? RoomColors.textSecondary : RoomColors.available,
+                            color: isCheckedOut
+                                ? RoomColors.textSecondary
+                                : RoomColors.available,
                           ),
                         ),
                       ),
@@ -595,17 +739,14 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                   ),
                   Text(
                     '#${history.id}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: RoomColors.textGrey,
-                    ),
+                    style: TextStyle(fontSize: 12, color: RoomColors.textGrey),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
               const Divider(height: 1),
               const SizedBox(height: 10),
-              // 入住/退房时间
+              // 入住/退床时间
               Row(
                 children: [
                   Expanded(
@@ -619,7 +760,7 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                   if (history.checkOutTime != null)
                     Expanded(
                       child: _buildHistoryTimeItem(
-                        '退房',
+                        '退床',
                         _formatDate(history.checkOutTime!),
                         _formatTime(history.checkOutTime!),
                         RoomColors.occupied,
@@ -667,7 +808,12 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
   }
 
   /// 构建历史记录时间项
-  Widget _buildHistoryTimeItem(String label, String date, String time, Color color) {
+  Widget _buildHistoryTimeItem(
+    String label,
+    String date,
+    String time,
+    Color color,
+  ) {
     return Row(
       children: [
         Container(
@@ -681,10 +827,7 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
             child: Container(
               width: 4,
               height: 4,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
           ),
         ),
@@ -694,10 +837,7 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
           children: [
             Text(
               label,
-              style: TextStyle(
-                fontSize: 11,
-                color: RoomColors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 11, color: RoomColors.textSecondary),
             ),
             const SizedBox(height: 2),
             Text(
@@ -710,10 +850,7 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
             ),
             Text(
               time,
-              style: TextStyle(
-                fontSize: 11,
-                color: RoomColors.textGrey,
-              ),
+              style: TextStyle(fontSize: 11, color: RoomColors.textGrey),
             ),
           ],
         ),
@@ -744,7 +881,11 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                     ),
                     TextButton.icon(
                       onPressed: () => _showEditRemarkDialog(),
-                      icon: Icon(Icons.edit, size: 16, color: RoomColors.primary),
+                      icon: Icon(
+                        Icons.edit,
+                        size: 16,
+                        color: RoomColors.primary,
+                      ),
                       label: Text(
                         '编辑',
                         style: TextStyle(color: RoomColors.primary),
@@ -755,17 +896,34 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: RoomColors.background,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    checkIn.remark!,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: RoomColors.textPrimary,
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: Colors.orange.withOpacity(0.3),
+                      width: 0.5,
                     ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.note_outlined,
+                        size: 14,
+                        color: Colors.orange.shade700,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          checkIn.remark!,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.orange.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -782,10 +940,7 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                   const SizedBox(height: 16),
                   Text(
                     '暂无备注信息',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: RoomColors.textGrey,
-                    ),
+                    style: TextStyle(fontSize: 14, color: RoomColors.textGrey),
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
@@ -795,7 +950,10 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: RoomColors.primary,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -815,45 +973,400 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(checkIn.remark != null && checkIn.remark!.isNotEmpty ? '编辑备注' : '添加备注'),
-        content: TextField(
-          controller: controller,
-          maxLines: 5,
-          decoration: InputDecoration(
-            hintText: '请输入备注内容',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            contentPadding: const EdgeInsets.all(12),
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.85,
+          constraints: const BoxConstraints(maxWidth: 400),
+          decoration: BoxDecoration(
+            color: RoomColors.cardBg,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 标题栏
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: RoomColors.divider, width: 0.5),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.note_outlined,
+                      color: RoomColors.primary,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      checkIn.remark != null && checkIn.remark!.isNotEmpty
+                          ? '编辑备注'
+                          : '添加备注',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: RoomColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // 内容区域
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: TextField(
+                  controller: controller,
+                  maxLines: 6,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: '请输入备注内容...',
+                    hintStyle: TextStyle(
+                      color: RoomColors.textGrey,
+                      fontSize: 14,
+                    ),
+                    filled: true,
+                    fillColor: RoomColors.background,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: RoomColors.primary,
+                        width: 1.5,
+                      ),
+                    ),
+                    contentPadding: const EdgeInsets.all(16),
+                  ),
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: RoomColors.textPrimary,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+              // 按钮区域
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: RoomColors.divider, width: 0.5),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: RoomColors.textSecondary,
+                          side: BorderSide(color: RoomColors.divider),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text('取消', style: TextStyle(fontSize: 15)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          final newRemark = controller.text.trim();
+                          Navigator.pop(context);
+                          await _updateRemark(newRemark);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: RoomColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          '保存',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newRemark = controller.text.trim();
-              Navigator.pop(context);
-              await _updateRemark(newRemark);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: RoomColors.primary,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('保存'),
-          ),
-        ],
       ),
     );
+  }
+
+  /// 显示身份编辑对话框
+  void _showPurposeEditDialog() {
+    final List<Map<String, String>> purposes = [
+      {'value': 'volunteer', 'label': '义工'},
+      {'value': 'study', 'label': '学修'},
+      {'value': 'permanent', 'label': '常住'},
+      {'value': 'master', 'label': '师父'},
+      {'value': 'other', 'label': '其它'},
+    ];
+
+    String? selectedPurpose = checkIn.purpose;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('修改身份'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: purposes.map((item) {
+              final isSelected = selectedPurpose == item['value'];
+              return ListTile(
+                title: Text(item['label']!),
+                leading: Radio<String>(
+                  value: item['value']!,
+                  groupValue: selectedPurpose,
+                  onChanged: (value) {
+                    setState(() {
+                      selectedPurpose = value;
+                    });
+                  },
+                ),
+                onTap: () {
+                  setState(() {
+                    selectedPurpose = item['value'];
+                  });
+                },
+                selected: isSelected,
+              );
+            }).toList(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: selectedPurpose == null
+                  ? null
+                  : () {
+                      Navigator.pop(context);
+                      _updatePurpose(selectedPurpose!);
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: RoomColors.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('确认修改'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 更新身份
+  Future<void> _updatePurpose(String purpose) async {
+    try {
+      final response = await RoomService.updateCheckInPurpose(
+        checkIn.id,
+        purpose,
+      );
+      if (response.isSuccess) {
+        // 更新本地数据
+        setState(() {
+          checkIn = RoomCheckIn(
+            id: checkIn.id,
+            roomId: checkIn.roomId,
+            roomArea: checkIn.roomArea,
+            roomNumber: checkIn.roomNumber,
+            userId: checkIn.userId,
+            bedNumber: checkIn.bedNumber,
+            checkInTime: checkIn.checkInTime,
+            checkOutTime: checkIn.checkOutTime,
+            status: checkIn.status,
+            remark: checkIn.remark,
+            cname: checkIn.cname,
+            cgender: checkIn.cgender,
+            cphone: checkIn.cphone,
+            cage: checkIn.cage,
+            purpose: purpose,
+            emergencyContactName: checkIn.emergencyContactName,
+            emergencyContactRelation: checkIn.emergencyContactRelation,
+            emergencyContactPhone: checkIn.emergencyContactPhone,
+          );
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('身份更新成功')));
+        // 通知父级刷新
+        onPurposeUpdated?.call();
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('身份更新失败: ${response.message}')));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('更新失败: $e')));
+    }
+  }
+
+  /// 显示入住时间编辑对话框
+  void _showCheckInTimeEditDialog() {
+    DateTime selectedDate = checkIn.checkInTime;
+    TimeOfDay selectedTime = TimeOfDay.fromDateTime(checkIn.checkInTime);
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('修改入住时间'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 日期选择
+              ListTile(
+                leading: const Icon(Icons.calendar_today),
+                title: const Text('日期'),
+                subtitle: Text(
+                  '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}',
+                ),
+                onTap: () async {
+                  final DateTime? picked = await showDatePicker(
+                    context: context,
+                    initialDate: selectedDate,
+                    firstDate: DateTime(1900),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      selectedDate = picked;
+                    });
+                  }
+                },
+              ),
+              // 时间选择
+              ListTile(
+                leading: const Icon(Icons.access_time),
+                title: const Text('时间'),
+                subtitle: Text(
+                  '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}',
+                ),
+                onTap: () async {
+                  final TimeOfDay? picked = await showTimePicker(
+                    context: context,
+                    initialTime: selectedTime,
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      selectedTime = picked;
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final newDateTime = DateTime(
+                  selectedDate.year,
+                  selectedDate.month,
+                  selectedDate.day,
+                  selectedTime.hour,
+                  selectedTime.minute,
+                );
+                Navigator.pop(context);
+                _updateCheckInTime(newDateTime);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: RoomColors.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('确认修改'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 更新入住时间
+  Future<void> _updateCheckInTime(DateTime checkInTime) async {
+    try {
+      final response = await RoomService.updateCheckInTime(
+        checkIn.id,
+        checkInTime,
+      );
+      if (response.isSuccess) {
+        // 更新本地数据
+        setState(() {
+          checkIn = RoomCheckIn(
+            id: checkIn.id,
+            roomId: checkIn.roomId,
+            roomArea: checkIn.roomArea,
+            roomNumber: checkIn.roomNumber,
+            userId: checkIn.userId,
+            bedNumber: checkIn.bedNumber,
+            checkInTime: checkInTime,
+            checkOutTime: checkIn.checkOutTime,
+            status: checkIn.status,
+            remark: checkIn.remark,
+            cname: checkIn.cname,
+            cgender: checkIn.cgender,
+            cphone: checkIn.cphone,
+            cage: checkIn.cage,
+            purpose: checkIn.purpose,
+            emergencyContactName: checkIn.emergencyContactName,
+            emergencyContactRelation: checkIn.emergencyContactRelation,
+            emergencyContactPhone: checkIn.emergencyContactPhone,
+          );
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('入住时间更新成功')));
+        // 通知父级刷新
+        onPurposeUpdated?.call();
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('入住时间更新失败: ${response.message}')));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('更新失败: $e')));
+    }
   }
 
   /// 更新备注
   Future<void> _updateRemark(String remark) async {
     try {
-      final response = await RoomService.updateCheckInRemark(checkIn.id, remark);
+      final response = await RoomService.updateCheckInRemark(
+        checkIn.id,
+        remark,
+      );
       if (response.isSuccess) {
         // 更新本地数据
         setState(() {
@@ -878,100 +1391,91 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
             emergencyContactPhone: checkIn.emergencyContactPhone,
           );
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('备注更新成功')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('备注更新成功')));
+        // 通知父级刷新
+        onPurposeUpdated?.call();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('备注更新失败: ${response.message}')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('备注更新失败: ${response.message}')));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('更新失败: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('更新失败: $e')));
     }
   }
 
-  /// 构建操作按钮
-  Widget _buildActionButtons(BuildContext context) {
-    final buttons = <Widget>[];
+  /// 格式化电话号码为 123 4567 8901
+  String _formatPhoneNumber(String? phoneNumber) {
+    if (phoneNumber == null || phoneNumber.isEmpty) return '-';
+    // 移除所有非数字字符
+    final digits = phoneNumber.replaceAll(RegExp(r'\D'), '');
+    if (digits.length == 11) {
+      // 11位手机号：3-4-4 分段
+      return '${digits.substring(0, 3)} ${digits.substring(3, 7)} ${digits.substring(7)}';
+    } else if (digits.length == 10) {
+      // 10位号码：3-3-4 分段
+      return '${digits.substring(0, 3)} ${digits.substring(3, 6)} ${digits.substring(6)}';
+    } else if (digits.length == 8) {
+      // 8位固话：4-4 分段
+      return '${digits.substring(0, 4)} ${digits.substring(4)}';
+    }
+    // 其他长度直接返回原值
+    return phoneNumber;
+  }
 
-    // 更换房间按钮
-    if (showChangeRoomButton) {
-      buttons.add(
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: () {
-              print('=== CheckInDetailSheet: 换房按钮被点击 ===');
-              print('=== CheckInDetailSheet: onChangeRoom = $onChangeRoom ===');
+  /// 显示拨号确认对话框
+  void _showCallConfirmDialog(String? phoneNumber) {
+    if (phoneNumber == null || phoneNumber.isEmpty) return;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('确认拨号'),
+        content: Text('是否拨打：${_formatPhoneNumber(phoneNumber)}？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
               Navigator.pop(context);
-              print('=== CheckInDetailSheet: 抽屉已关闭，准备调用 onChangeRoom ===');
-              onChangeRoom?.call();
-              print('=== CheckInDetailSheet: onChangeRoom 调用完成 ===');
+              final telUrl = 'tel:$phoneNumber';
+              if (await canLaunchUrl(Uri.parse(telUrl))) {
+                await launchUrl(Uri.parse(telUrl));
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: RoomColors.primary,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
             ),
-            icon: const Icon(Icons.swap_horiz, size: 18),
-            label: const Text('换房'),
+            child: const Text('拨号'),
           ),
-        ),
-      );
-    }
-
-    // 退房按钮
-    if (showCheckOutButton) {
-      if (buttons.isNotEmpty) buttons.add(const SizedBox(width: 8));
-      buttons.add(
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              onCheckOut?.call();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: RoomColors.occupied,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            icon: const Icon(Icons.exit_to_app, size: 18),
-            label: const Text('退房'),
-          ),
-        ),
-      );
-    }
-
-    // 关闭按钮
-    if (buttons.isNotEmpty) buttons.add(const SizedBox(width: 8));
-    buttons.add(
-      Expanded(
-        child: OutlinedButton(
-          onPressed: () => Navigator.pop(context),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: RoomColors.textSecondary,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            side: BorderSide(color: RoomColors.divider),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          child: const Text('关闭'),
-        ),
+        ],
       ),
     );
+  }
 
-    return Row(
-      children: buttons,
-    );
+  /// 将 purpose 映射为显示文本
+  String _mapPurposeToDisplay(String? purpose) {
+    switch (purpose) {
+      case 'volunteer':
+        return '义工';
+      case 'study':
+        return '学修';
+      case 'permanent':
+        return '常住';
+      case 'master':
+        return '师父';
+      case 'other':
+        return '其它';
+      default:
+        return purpose ?? '-';
+    }
   }
 
   /// 计算入住天数
@@ -1000,6 +1504,11 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
 
   /// 格式化日期
   String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    // 如果不是今年，显示年份
+    if (date.year != now.year) {
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    }
     return '${date.month}/${date.day}';
   }
 }

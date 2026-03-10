@@ -464,12 +464,28 @@ class _ChangeRoomSheetState extends State<ChangeRoomSheet> {
       spacing: 8,
       runSpacing: 8,
       children: List.generate(room.totalCapacity, (index) {
-        final bedNumber = index < room.roomBeds ? index + 1 : index - room.roomBeds + 1;
+        final isFloorBed = index >= room.roomBeds;
+        final bedNumber = index + 1;
         final isOccupied = occupiedBeds.contains(bedNumber);
         final isSelected = _selectedBedNumber == bedNumber;
 
         return ChoiceChip(
-          label: Text('第$bedNumber床'),
+          label: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isFloorBed ? Icons.bed_outlined : Icons.bed,
+                size: 14,
+                color: isOccupied
+                    ? RoomColors.textGrey
+                    : isSelected
+                        ? Colors.white
+                        : RoomColors.textPrimary,
+              ),
+              const SizedBox(width: 4),
+              Text(isFloorBed ? '地铺$bedNumber' : '床位$bedNumber'),
+            ],
+          ),
           selected: isSelected,
           onSelected: isOccupied
               ? null
