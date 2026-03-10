@@ -104,9 +104,17 @@ class RoomGridPageState extends State<RoomGridPage> {
       if (_filterGender != 'all' && room.roomGender != _filterGender) return false;
       return true;
     }).toList();
-    
-    // 按入住人数从多到少排序
-    _filteredRooms.sort((a, b) => b.occupiedBeds.compareTo(a.occupiedBeds));
+
+    // 按房间号排序（数字部分升序）
+    _filteredRooms.sort((a, b) {
+      // 提取房间号中的数字部分
+      final aNum = int.tryParse(a.roomNumber.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+      final bNum = int.tryParse(b.roomNumber.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+      return aNum.compareTo(bNum);
+    });
+
+    // 按入住人数从多到少排序（已注释掉）
+    // _filteredRooms.sort((a, b) => b.occupiedBeds.compareTo(a.occupiedBeds));
   }
 
   void _onFilterAreaChanged(String area) {

@@ -5,7 +5,7 @@ import '../room_colors.dart';
 import 'room/check_in_records_page.dart';
 import 'room/check_in_registration_page.dart';
 import 'room/current_check_ins_page.dart';
-import 'user_management_page.dart';
+import 'cgh_user_management_page.dart';
 import 'volunteer_application_page.dart';
 
 class ToolsPage extends StatefulWidget {
@@ -27,7 +27,8 @@ class ToolsPageState extends State<ToolsPage> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _showVolunteerApplication = prefs.getBool('showVolunteerApplication') ?? false;
+      _showVolunteerApplication =
+          prefs.getBool('showVolunteerApplication') ?? false;
     });
   }
 
@@ -70,40 +71,55 @@ class ToolsPageState extends State<ToolsPage> {
               runSpacing: 16,
               alignment: WrapAlignment.spaceEvenly,
               children: [
-              _buildQuickAccessItem(
-                icon: Icons.app_registration,
-                label: '登记入住',
-                color: RoomColors.primary,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const CheckInRegistrationPage()),
-                  );
-                },
-              ),
-              _buildQuickAccessItem(
-                icon: Icons.receipt_long_outlined,
-                label: '入住记录表',
-                color: Colors.orange,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const CheckInRecordsPage()),
-                  );
-                },
-              ),
-              if (_showVolunteerApplication)
                 _buildQuickAccessItem(
-                  icon: Icons.volunteer_activism_outlined,
-                  label: '义工申请表',
-                  color: Colors.green,
+                  icon: Icons.app_registration,
+                  label: '登记入住',
+                  color: RoomColors.primary,
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const VolunteerApplicationPage()),
+                      MaterialPageRoute(
+                        builder: (context) => const CheckInRegistrationPage(),
+                      ),
                     );
                   },
                 ),
+                _buildQuickAccessItem(
+                  icon: Icons.bed_outlined,
+                  label: '在寺人员',
+                  color: RoomColors.primary,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CurrentCheckInsPage(),
+                      ),
+                    );
+                  },
+                ),
+                // _buildQuickAccessItem(
+                //   icon: Icons.receipt_long_outlined,
+                //   label: '入住记录表',
+                //   color: Colors.orange,
+                //   onTap: () {
+                //     Navigator.push(
+                //       context,
+                //       MaterialPageRoute(builder: (context) => const CheckInRecordsPage()),
+                //     );
+                //   },
+                // ),
+                // if (_showVolunteerApplication)
+                //   _buildQuickAccessItem(
+                //     icon: Icons.volunteer_activism_outlined,
+                //     label: '义工申请表',
+                //     color: Colors.green,
+                //     onTap: () {
+                //       Navigator.push(
+                //         context,
+                //         MaterialPageRoute(builder: (context) => const VolunteerApplicationPage()),
+                //       );
+                //     },
+                //   ),
               ],
             ),
           ),
@@ -128,20 +144,13 @@ class ToolsPageState extends State<ToolsPage> {
             height: 48,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  color.withOpacity(0.15),
-                  color.withOpacity(0.05),
-                ],
+                colors: [color.withOpacity(0.15), color.withOpacity(0.05)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(
-              icon,
-              size: 24,
-              color: color,
-            ),
+            child: Icon(icon, size: 24, color: color),
           ),
           const SizedBox(height: 6),
           Text(
@@ -170,20 +179,66 @@ class ToolsPageState extends State<ToolsPage> {
           _buildQuickAccessGrid(),
           const SizedBox(height: 12),
           MenuSection(
-            title: '管理',
+            title: '数据',
             items: [
               MenuItem(
                 icon: Icons.bed_outlined,
-                title: '在寺人员',
+                title: '义工申请表',
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const CurrentCheckInsPage()),
+                    MaterialPageRoute(
+                      builder: (context) => const VolunteerApplicationPage(),
+                    ),
+                  );
+                },
+              ),
+              MenuItem(
+                icon: Icons.receipt_long_outlined,
+                title: '入住登记表',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CheckInRecordsPage(),
+                    ),
                   );
                 },
               ),
             ],
           ),
+
+          const SizedBox(height: 12),
+          MenuSection(
+            title: '管理',
+            items: [
+              // MenuItem(
+              //   icon: Icons.bed_outlined,
+              //   title: '义工申请表',
+              //   onTap: () {
+              //     Navigator.push(
+              //       context,
+              //       MaterialPageRoute(
+              //         builder: (context) => const VolunteerApplicationPage(),
+              //       ),
+              //     );
+              //   },
+              // ),
+              MenuItem(
+                icon: Icons.people_outline,
+                title: '人员管理',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CghUserManagementPage(),
+                    ),
+                  );
+                },
+              )
+            ],
+          ),
+
           // 其他菜单（暂时隐藏）
           // const SizedBox(height: 12),
           // MenuSection(
