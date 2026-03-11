@@ -378,19 +378,36 @@ class _RoomDetailContentState extends State<_RoomDetailContent> {
   }
 
   Widget _buildGenderBadge(String gender) {
-    final isMale = gender == 'male';
+    Color bgColor;
+    Color textColor;
+    String text;
+
+    if (gender == 'male') {
+      bgColor = const Color(0xffE3F2FD);
+      textColor = const Color(0xff1976D2);
+      text = '男';
+    } else if (gender == 'female') {
+      bgColor = const Color(0xffFCE4EC);
+      textColor = const Color(0xffC2185B);
+      text = '女';
+    } else {
+      bgColor = Colors.indigo.withOpacity(0.1);
+      textColor = Colors.indigo;
+      text = '外';
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: isMale ? const Color(0xffE3F2FD) : const Color(0xffFCE4EC),
+        color: bgColor,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        isMale ? '男' : '女',
+        text,
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w500,
-          color: isMale ? const Color(0xff1976D2) : const Color(0xffC2185B),
+          color: textColor,
         ),
       ),
     );

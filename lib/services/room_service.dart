@@ -289,6 +289,46 @@ class RoomService {
     }
   }
 
+  // 获取单个入住详情
+  static Future<RoomCheckInResponse> getCheckInDetail(int checkInId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/room-check-ins/$checkInId'),
+        headers: _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        
+        // 检查 data 字段是单个对象还是列表
+        if (jsonData['data'] is Map) {
+          // 如果是单个对象，包装成列表
+          return RoomCheckInResponse(
+            code: jsonData['code'],
+            data: [RoomCheckIn.fromJson(jsonData['data'])],
+            message: jsonData['message'],
+          );
+        } else {
+          // 如果是列表，直接使用
+          return RoomCheckInResponse.fromJson(jsonData);
+        }
+      } else {
+        return RoomCheckInResponse(
+          code: response.statusCode,
+          data: [],
+          message: '请求失败: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      print('=== getCheckInDetail 错误: $e ===');
+      return RoomCheckInResponse(
+        code: 500,
+        data: [],
+        message: '网络错误: $e',
+      );
+    }
+  }
+
   // 快速入住登记
   static Future<QuickCheckInResponse> quickCheckIn({
     required int userId,
@@ -375,7 +415,7 @@ class RoomService {
   static Future<QuickCheckInResponse> changeRoom({
     required int checkInId,
     required int newRoomId,
-    required int newBedNumber,
+    int? newBedNumber,
   }) async {
     try {
       final body = json.encode({

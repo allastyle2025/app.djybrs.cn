@@ -137,9 +137,15 @@ class _CghUserManagementPageState extends State<CghUserManagementPage> {
         Positioned(
           left: 0,
           right: 0,
-          bottom: 12,
-          child: Center(
-            child: _buildPagination(),
+          bottom: 0,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Center(
+                child: _buildPagination(),
+              ),
+            ),
           ),
         ),
       ],

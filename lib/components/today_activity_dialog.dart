@@ -198,29 +198,22 @@ class TodayActivityDialog extends StatelessWidget {
               : Column(
                   children: [
                     // 表头和表格内容（支持水平和垂直滚动）
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 200),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: SizedBox(
-                          width: 460,
-                          child: Column(
-                            children: [
-                              _buildTableHeader(),
-                              Divider(height: 1, color: RoomColors.divider),
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  child: Column(
-                                    children: items.asMap().entries.map((entry) {
-                                      final index = entry.key;
-                                      final checkIn = entry.value;
-                                      return _buildTableRow(checkIn, index + 1, index % 2 == 1);
-                                    }).toList(),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SizedBox(
+                        width: 460,
+                        child: Column(
+                          children: [
+                            _buildTableHeader(),
+                            Divider(height: 1, color: RoomColors.divider),
+                            Column(
+                              children: items.asMap().entries.map((entry) {
+                                final index = entry.key;
+                                final checkIn = entry.value;
+                                return _buildTableRow(checkIn, index + 1, index % 2 == 1);
+                              }).toList(),
+                            ),
+                          ],
                         ),
                       ),
                     ),

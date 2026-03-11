@@ -67,9 +67,17 @@ class _SelectRoomPageState extends State<SelectRoomPage> {
 
   List<Room> _getFilteredRooms(String gender) {
     return _rooms.where((room) {
-      return room.areaDisplayName == _selectedArea &&
-          room.roomGender == gender &&
-          room.availableBeds > 0; // 只显示有空床位的房间
+      // 检查区域匹配
+      if (room.areaDisplayName != _selectedArea) return false;
+
+      // 检查床位可用性
+      if (room.availableBeds <= 0) return false;
+
+      // wz区域的房间（gender为other）男女都可以入住
+      if (room.roomGender == 'other') return true;
+
+      // 其他区域按性别筛选
+      return room.roomGender == gender;
     }).toList();
   }
 
@@ -550,6 +558,9 @@ class _SelectRoomPageState extends State<SelectRoomPage> {
     final totalBeds = room.totalCapacity;
     final occupiedBeds = (totalBeds - room.availableBeds).clamp(0, totalBeds);
 
+    // 判断是否为外住区域（gender为other）
+    final isOtherGender = room.roomGender == 'other';
+
     return GestureDetector(
       onTap: () => _onRoomSelected(room),
       child: Container(
@@ -576,21 +587,43 @@ class _SelectRoomPageState extends State<SelectRoomPage> {
                     color: RoomColors.textPrimary,
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: room.availableBeds > 0
-                        ? RoomColors.available.withOpacity(0.1)
-                        : RoomColors.occupied.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    room.availableBeds > 0 ? '空闲' : '满员',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: room.availableBeds > 0 ? RoomColors.available : RoomColors.occupied,
+                Row(
+                  children: [
+                    // 外住区域显示性别标识
+                    if (isOtherGender)
+                      Container(
+                        margin: const EdgeInsets.only(right: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: RoomColors.textGrey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: Text(
+                          '外',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: RoomColors.textGrey,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: room.availableBeds > 0
+                            ? RoomColors.available.withOpacity(0.1)
+                            : RoomColors.occupied.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        room.availableBeds > 0 ? '空闲' : '满员',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: room.availableBeds > 0 ? RoomColors.available : RoomColors.occupied,
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),

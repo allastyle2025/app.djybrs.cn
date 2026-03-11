@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../components/change_room_sheet.dart';
 import '../../components/check_in_detail_sheet.dart';
@@ -22,10 +23,11 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
   String _errorMessage = '';
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
+  late StreamSubscription<void> _dataChangeSubscription;
 
   // 分类
-  final List<String> _categories = ['全部', '义工', '学修', '常住', '师父'];
-  String _selectedCategory = '全部';
+  final List<String> _categories = ['待审', '义工', '学修', '常住', '师父', '其它'];
+  String _selectedCategory = '待审';
 
   //头像显示变量
   bool _showAvatar = false; // false = 隐藏, true = 显示
@@ -34,16 +36,23 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
   void initState() {
     super.initState();
     _loadData();
+    
+    // 订阅数据变更通知
+    _dataChangeSubscription = RoomDataNotifier().onDataChanged.listen((_) {
+      print('=== CurrentCheckInsPage: 收到数据变更通知，重新加载数据 ===');
+      _loadData();
+    });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _dataChangeSubscription.cancel();
     super.dispose();
   }
 
   void _filterCheckIns(String query) {
-    if (query.isEmpty && _selectedCategory == '全部') {
+    if (query.isEmpty && _selectedCategory == '待审') {
       setState(() {
         _filteredCheckIns = _checkIns;
       });
@@ -54,7 +63,7 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
     setState(() {
       _filteredCheckIns = _checkIns.where((checkIn) {
         // 分类过滤
-        if (_selectedCategory != '全部') {
+        if (_selectedCategory != '待审') {
           // 使用 purpose 字段进行分类过滤
           final purpose = checkIn.purpose ?? '';
           // 映射 purpose 到分类名称
@@ -99,7 +108,7 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
 
   // 计算每个分类的数量
   int _getCategoryCount(String category) {
-    if (category == '全部') {
+    if (category == '待审') {
       return _checkIns.length;
     }
     return _checkIns.where((checkIn) {
@@ -173,102 +182,104 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
           ),
         ],
       ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: RoomColors.primary))
-          : _errorMessage.isNotEmpty
-          ? _buildErrorView()
-          : Row(
-              children: [
-                // 左侧分类菜单
-                Container(
-                  width: MediaQuery.of(context).size.width * 0.25,
-                  margin: const EdgeInsets.only(left: 4, top: 6, bottom: 6),
-                  decoration: BoxDecoration(
-                    color: RoomColors.cardBg,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(8),
-                    itemCount: _categories.length,
-                    itemBuilder: (context, index) {
-                      final category = _categories[index];
-                      final isSelected = _selectedCategory == category;
-                      final count = _getCategoryCount(category);
-                      return GestureDetector(
-                        onTap: () => _filterByCategory(category),
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 4),
-                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                          decoration: BoxDecoration(
-                            color: isSelected ? RoomColors.primary.withOpacity(0.1) : null,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              // 选中指示器
-                              if (isSelected)
-                                Container(
-                                  width: 3,
-                                  height: 36,
-                                  margin: const EdgeInsets.only(right: 8),
-                                  decoration: BoxDecoration(
-                                    color: RoomColors.primary,
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                )
-                              else
-                                const SizedBox(width: 11),
-                              // 分类名称和数量
-                              Expanded(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // 数量（在上面，大气显示）
-                                    Text(
-                                      '$count',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: isSelected ? RoomColors.primary : RoomColors.textPrimary,
-                                        fontWeight: FontWeight.normal,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    // 分类名称（在下面）
-                                    Text(
-                                      category,
-                                      style: TextStyle(
-                                        color: isSelected ? RoomColors.primary : RoomColors.textSecondary,
-                                        fontSize: 12,
-                                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+      body: SafeArea(
+        child: _isLoading
+            ? Center(child: CircularProgressIndicator(color: RoomColors.primary))
+            : _errorMessage.isNotEmpty
+            ? _buildErrorView()
+            : Row(
+                children: [
+                  // 左侧分类菜单
+                  Container(
+                    width: MediaQuery.of(context).size.width * 0.25,
+                    margin: const EdgeInsets.only(left: 4, top: 6, bottom: 6),
+                    decoration: BoxDecoration(
+                      color: RoomColors.cardBg,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
-                      );
-                    },
+                      ],
+                    ),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(8),
+                      itemCount: _categories.length,
+                      itemBuilder: (context, index) {
+                        final category = _categories[index];
+                        final isSelected = _selectedCategory == category;
+                        final count = _getCategoryCount(category);
+                        return GestureDetector(
+                          onTap: () => _filterByCategory(category),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 4),
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                            decoration: BoxDecoration(
+                              color: isSelected ? Colors.indigo.withOpacity(0.1) : null,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                // 选中指示器
+                                if (isSelected)
+                                  Container(
+                                    width: 3,
+                                    height: 36,
+                                    margin: const EdgeInsets.only(right: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.indigo,
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  )
+                                else
+                                  const SizedBox(width: 11),
+                                // 分类名称和数量
+                                Expanded(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // 分类名称（在上面）
+                                      Text(
+                                        category,
+                                        style: TextStyle(
+                                          color: isSelected ? Colors.indigo : RoomColors.textSecondary,
+                                          fontSize: 12,
+                                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      // 数量（在下面）
+                                      Text(
+                                        '$count',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: isSelected ? Colors.indigo : RoomColors.textPrimary,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                ),
-                // 右侧内容区域
-                Expanded(
-                  child: _filteredCheckIns.isEmpty
-                      ? _buildEmptyView()
-                      : _buildListView(),
-                ),
-              ],
-            ),
+                  // 右侧内容区域
+                  Expanded(
+                    child: _filteredCheckIns.isEmpty
+                        ? _buildEmptyView()
+                        : _buildListView(),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 
@@ -590,6 +601,10 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
       onCheckOut: () => _showCheckOutConfirmDialog(context, checkIn),
       onChangeRoom: () => _showChangeRoomSheet(checkIn),
       onPurposeUpdated: () => _loadData(), // 身份更新后刷新列表
+      onRoomChanged: () {
+        // 房间更换后重新加载该入住信息
+        _loadData();
+      },
     );
   }
 

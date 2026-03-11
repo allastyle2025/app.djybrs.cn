@@ -1,0 +1,1 @@
+scp build\app\outputs\flutter-apk\app-release.apk root@192.168.10.68:~/Downloads/apk/

@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/room_check_in.dart';
 import '../room_colors.dart';
 import '../services/room_service.dart';
+import '../services/room_data_notifier.dart';
 
 /// 入住详情底部抽屉弹窗组件
 class CheckInDetailSheet extends StatefulWidget {
@@ -11,6 +13,7 @@ class CheckInDetailSheet extends StatefulWidget {
   final VoidCallback? onCheckOut;
   final VoidCallback? onChangeRoom;
   final VoidCallback? onPurposeUpdated;
+  final VoidCallback? onRoomChanged; // 房间更换后回调
   final bool showCheckOutButton;
   final bool showChangeRoomButton;
 
@@ -21,6 +24,7 @@ class CheckInDetailSheet extends StatefulWidget {
     this.onCheckOut,
     this.onChangeRoom,
     this.onPurposeUpdated,
+    this.onRoomChanged,
     this.showCheckOutButton = true,
     this.showChangeRoomButton = true,
   });
@@ -33,6 +37,7 @@ class CheckInDetailSheet extends StatefulWidget {
     VoidCallback? onCheckOut,
     VoidCallback? onChangeRoom,
     VoidCallback? onPurposeUpdated,
+    VoidCallback? onRoomChanged,
     bool showCheckOutButton = true,
     bool showChangeRoomButton = true,
   }) {
@@ -46,6 +51,7 @@ class CheckInDetailSheet extends StatefulWidget {
         onCheckOut: onCheckOut,
         onChangeRoom: onChangeRoom,
         onPurposeUpdated: onPurposeUpdated,
+        onRoomChanged: onRoomChanged,
         showCheckOutButton: showCheckOutButton,
         showChangeRoomButton: showChangeRoomButton,
       ),
@@ -61,6 +67,7 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
   late List<CheckInHistory> historyCheckIns;
   late Future<void> _loadDataFuture;
   bool _isExpanded = false;
+  late StreamSubscription<void> _dataChangeSubscription;
 
   @override
   void initState() {
@@ -68,6 +75,18 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
     checkIn = widget.checkIn;
     historyCheckIns = widget.historyCheckIns;
     _loadDataFuture = _loadData();
+    
+    // 订阅数据变更通知
+    _dataChangeSubscription = RoomDataNotifier().onDataChanged.listen((_) {
+      print('=== CheckInDetailSheet: 收到数据变更通知，重新加载入住信息 ===');
+      _reloadCheckInData();
+    });
+  }
+
+  @override
+  void dispose() {
+    _dataChangeSubscription.cancel();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -78,8 +97,35 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
   VoidCallback? get onCheckOut => widget.onCheckOut;
   VoidCallback? get onChangeRoom => widget.onChangeRoom;
   VoidCallback? get onPurposeUpdated => widget.onPurposeUpdated;
+  VoidCallback? get onRoomChanged => widget.onRoomChanged;
   bool get showCheckOutButton => widget.showCheckOutButton;
   bool get showChangeRoomButton => widget.showChangeRoomButton;
+
+  // 重新加载入住信息
+  Future<void> _reloadCheckInData() async {
+    print('=== CheckInDetailSheet: 开始重新加载入住信息，checkIn.id = ${checkIn.id} ===');
+    final response = await RoomService.getCheckInDetail(checkIn.id);
+    print('=== CheckInDetailSheet: API 响应 isSuccess = ${response.isSuccess}, data.length = ${response.data.length} ===');
+    if (response.isSuccess && response.data.isNotEmpty) {
+      print('=== CheckInDetailSheet: 成功获取新数据，准备更新状态 ===');
+      setState(() {
+        checkIn = response.data[0];
+        print('=== CheckInDetailSheet: 状态更新完成，新房间号 = ${checkIn.roomNumber} ===');
+      });
+    } else {
+      print('=== CheckInDetailSheet: 加载失败，message = ${response.message} ===');
+    }
+  }
+
+  @override
+  void didUpdateWidget(CheckInDetailSheet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 当widget更新时，重新加载数据
+    if (widget.checkIn.id != oldWidget.checkIn.id) {
+      checkIn = widget.checkIn;
+      _loadDataFuture = _loadData();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -290,7 +336,12 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                               setState(() {
                                 _isExpanded = false;
                               });
+                              // 传递房间更换完成的回调
                               onChangeRoom?.call();
+                              // 房间更换完成后，重新加载当前入住信息
+                              Future.delayed(const Duration(seconds: 1), () {
+                                _reloadCheckInData();
+                              });
                             },
                             heroTag: 'change_room',
                             backgroundColor: RoomColors.primary,

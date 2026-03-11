@@ -17,6 +17,8 @@ String getAreaDisplayName(String roomArea) {
       return '常住';
     case 'ld':
       return '老殿';
+    case 'wz':
+      return '外';
     case 'other':
       return '其他';
     default:

@@ -92,6 +92,8 @@ class Room {
         return const Color(0xFF4A90E2); // 蓝色
       case 'female':
         return const Color(0xFFE24A8D); // 粉色
+      case 'other':
+        return Colors.indigo; // 外住区域使用靛蓝色
       default:
         return const Color(0xFF999999);
     }
@@ -104,6 +106,8 @@ class Room {
         return const Color(0xFFE3F2FD); // 浅蓝
       case 'female':
         return const Color(0xFFFCE4EC); // 浅粉
+      case 'other':
+        return Colors.indigo.withOpacity(0.1); // 外住区域浅靛蓝
       default:
         return const Color(0xFFF5F5F5);
     }
@@ -116,6 +120,8 @@ class Room {
         return Icons.male;
       case 'female':
         return Icons.female;
+      case 'other':
+        return Icons.home_work_outlined; // 外住区域使用建筑图标
       default:
         return Icons.person;
     }
@@ -230,6 +236,12 @@ class AreaConfig {
       name: '老殿',
       icon: Icons.history,
       color: Color(0xFFF59E0B),
+    ),
+    AreaConfig(
+      code: 'wz',
+      name: '外',
+      icon: Icons.home_work_outlined,
+      color: Colors.indigo,
     ),
   ];
 

@@ -16,19 +16,19 @@ class ChangeRoomSheet extends StatefulWidget {
     this.onRoomChanged,
   });
 
-  /// 显示更换房间弹窗
+  /// 显示更换房间页面
   static Future<void> show({
     required BuildContext context,
     required RoomCheckIn checkIn,
     VoidCallback? onRoomChanged,
   }) {
-    return showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => ChangeRoomSheet(
-        checkIn: checkIn,
-        onRoomChanged: onRoomChanged,
+    return Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChangeRoomSheet(
+          checkIn: checkIn,
+          onRoomChanged: onRoomChanged,
+        ),
       ),
     );
   }
@@ -40,10 +40,11 @@ class ChangeRoomSheet extends StatefulWidget {
 class _ChangeRoomSheetState extends State<ChangeRoomSheet> {
   List<Room> _rooms = [];
   List<Room> _filteredRooms = [];
+  List<String> _areas = []; // 区域名称列表
   Map<int, Set<int>> _roomOccupiedBeds = {}; // roomId -> occupied bed numbers
   bool _isLoading = true;
   String _errorMessage = '';
-  String _selectedArea = 'all';
+  String _selectedArea = '华严殿'; // 默认选择华严殿
   Room? _selectedRoom;
   int? _selectedBedNumber;
   bool _isSubmitting = false;
@@ -98,6 +99,12 @@ class _ChangeRoomSheetState extends State<ChangeRoomSheet> {
     if (response.isSuccess) {
       setState(() {
         _rooms = response.data;
+        // 收集所有区域名称
+        _areas = _rooms.map((r) => r.areaDisplayName).toSet().toList();
+        // 确保默认区域存在
+        if (_areas.isNotEmpty && !_areas.contains(_selectedArea)) {
+          _selectedArea = _areas.first;
+        }
         _applyFilter();
       });
     } else {
@@ -110,22 +117,22 @@ class _ChangeRoomSheetState extends State<ChangeRoomSheet> {
   void _applyFilter() {
     // 筛选同性别且有空床位的房间
     _filteredRooms = _rooms.where((room) {
-      // 必须是同性别
-      if (room.roomGender != widget.checkIn.cgender) return false;
+      // 必须是同性别或外住区域
+      if (room.roomGender != widget.checkIn.cgender && room.roomGender != 'other') return false;
       // 必须有空床位
       if (room.availableBeds <= 0) return false;
       // 排除当前房间
       if (room.id == widget.checkIn.roomId) return false;
       // 区域筛选
-      if (_selectedArea != 'all' && room.roomArea != _selectedArea) return false;
+      if (room.areaDisplayName != _selectedArea) return false;
       return true;
     }).toList();
   }
 
   Future<void> _changeRoom() async {
-    if (_selectedRoom == null || _selectedBedNumber == null) {
+    if (_selectedRoom == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请选择房间和床位')),
+        const SnackBar(content: Text('请选择房间')),
       );
       return;
     }
@@ -138,7 +145,7 @@ class _ChangeRoomSheetState extends State<ChangeRoomSheet> {
     final response = await RoomService.changeRoom(
       checkInId: widget.checkIn.id,
       newRoomId: _selectedRoom!.id,
-      newBedNumber: _selectedBedNumber!,
+      newBedNumber: _selectedBedNumber, // 允许为null，API会自动分配
     );
 
     setState(() {
@@ -150,20 +157,22 @@ class _ChangeRoomSheetState extends State<ChangeRoomSheet> {
 
     if (response.isSuccess) {
       if (mounted) {
-        print('=== ChangeRoomSheet: 准备关闭抽屉并发送通知 ===');
-        Navigator.pop(context);
-        print('=== ChangeRoomSheet: 抽屉已关闭，准备发送全局通知 ===');
+        print('=== ChangeRoomSheet: 准备发送通知并关闭页面 ===');
         // 发送全局数据变更通知
         RoomDataNotifier().notifyDataChanged();
         print('=== ChangeRoomSheet: 全局通知发送完成 ===');
         // 调用回调（如果有）
         widget.onRoomChanged?.call();
+        // 显示成功提示
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('更换房间成功！${_selectedRoom!.roomNumber}号房 第${_selectedBedNumber}床'),
+            content: Text('更换房间成功！${_selectedRoom!.roomNumber}号房'),
             backgroundColor: RoomColors.available,
           ),
         );
+        // 关闭页面
+        print('=== ChangeRoomSheet: 关闭页面 ===');
+        Navigator.pop(context);
       }
     } else {
       if (mounted) {
@@ -179,59 +188,133 @@ class _ChangeRoomSheetState extends State<ChangeRoomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Container(
-        height: MediaQuery.of(context).size.height * 0.85,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: RoomColors.cardBg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+    return Scaffold(
+      backgroundColor: RoomColors.background,
+      appBar: AppBar(
+        backgroundColor: RoomColors.cardBg,
+        elevation: 0,
+        iconTheme: IconThemeData(color: RoomColors.textPrimary),
+        title: Text(
+          '更换房间',
+          style: TextStyle(
+            color: RoomColors.textPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
         ),
+      ),
+      body: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 拖动条
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: RoomColors.divider,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+            // 当前入住信息
+            Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: widget.checkIn.cgender == 'male'
+                          ? const Color(0xff42A5F5).withOpacity(0.1)
+                          : const Color.fromARGB(255, 255, 107, 164).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        Icons.person,
+                        size: 28,
+                        color: widget.checkIn.cgender == 'male'
+                            ? const Color(0xff42A5F5)
+                            : const Color.fromARGB(255, 255, 107, 164),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              widget.checkIn.cname,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: RoomColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: widget.checkIn.cgender == 'male'
+                                    ? const Color(0xff42A5F5).withOpacity(0.1)
+                                    : const Color.fromARGB(255, 255, 107, 164).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                widget.checkIn.cgender == 'male' ? '男' : '女',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: widget.checkIn.cgender == 'male'
+                                      ? const Color(0xff42A5F5)
+                                      : const Color.fromARGB(255, 255, 107, 164),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.checkIn.cphone,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: RoomColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '当前: ${widget.checkIn.areaDisplayName} ${widget.checkIn.roomNumber}号房 第${widget.checkIn.bedNumber}床',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: RoomColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            // 标题
-            Row(
-              children: [
-                Text(
-                  '更换房间',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: RoomColors.textPrimary,
-                  ),
-                ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close, size: 18),
-                  label: const Text('取消'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            // 当前入住信息
-            _buildCurrentInfo(),
-            const SizedBox(height: 16),
             // 区域筛选
-            _buildAreaFilter(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildAreaDropdown(),
+            ),
             const SizedBox(height: 16),
             // 房间列表
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        color: RoomColors.primary,
+                      ),
+                    )
                   : _errorMessage.isNotEmpty
                       ? Center(
                           child: Column(
@@ -259,7 +342,14 @@ class _ChangeRoomSheetState extends State<ChangeRoomSheet> {
                                 ),
                               ),
                             )
-                          : ListView.builder(
+                          : GridView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                childAspectRatio: 1.5,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                              ),
                               itemCount: _filteredRooms.length,
                               itemBuilder: (context, index) {
                                 final room = _filteredRooms[index];
@@ -267,108 +357,86 @@ class _ChangeRoomSheetState extends State<ChangeRoomSheet> {
                               },
                             ),
             ),
-            const SizedBox(height: 16),
-            // 确认按钮
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isSubmitting ? null : _changeRoom,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: RoomColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                icon: _isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.check, size: 18),
-                label: Text(_isSubmitting ? '更换中...' : '确认更换'),
-              ),
-            ),
           ],
         ),
       ),
-    );
-  }
-
-  /// 构建当前入住信息
-  Widget _buildCurrentInfo() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: RoomColors.primary.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: RoomColors.primary.withOpacity(0.2)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline, size: 16, color: RoomColors.primary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '当前: ${widget.checkIn.areaDisplayName} ${widget.checkIn.roomNumber}号房 第${widget.checkIn.bedNumber}床',
-              style: TextStyle(
-                fontSize: 13,
-                color: RoomColors.textPrimary,
+      // 底部确认按钮
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isSubmitting ? null : _changeRoom,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: RoomColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                disabledBackgroundColor: RoomColors.divider,
               ),
+              child: _isSubmitting
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text('更换中...'),
+                      ],
+                    )
+                  : Text(
+                      _selectedRoom == null ? '请选择房间' : '确认更换',
+                      style: const TextStyle(fontSize: 16),
+                    ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  /// 构建区域筛选
-  Widget _buildAreaFilter() {
-    return SizedBox(
-      height: 36,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          _buildAreaChip('all', '全部'),
-          ...AreaConfig.allAreas.map((area) => _buildAreaChip(area.code, area.name)),
-        ],
-      ),
-    );
-  }
-
-  /// 构建区域芯片
-  Widget _buildAreaChip(String code, String name) {
-    final isSelected = _selectedArea == code;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
-        label: Text(name),
-        selected: isSelected,
-        onSelected: (selected) {
-          if (selected) {
-            setState(() {
-              _selectedArea = code;
-              _applyFilter();
-              _selectedRoom = null;
-              _selectedBedNumber = null;
-            });
-          }
-        },
-        selectedColor: RoomColors.primary.withOpacity(0.1),
-        labelStyle: TextStyle(
-          color: isSelected ? RoomColors.primary : RoomColors.textSecondary,
-          fontSize: 13,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(
-            color: isSelected ? RoomColors.primary : RoomColors.divider,
+      ),
+    );
+  }
+
+  /// 构建区域下拉选择器
+  Widget _buildAreaDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: RoomColors.cardBg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedArea,
+          isDense: true,
+          icon: Icon(Icons.arrow_drop_down, color: RoomColors.textSecondary),
+          style: TextStyle(
+            fontSize: 14,
+            color: RoomColors.textPrimary,
           ),
+          items: _areas.map((area) {
+            return DropdownMenuItem(
+              value: area,
+              child: Text(area),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value != null) {
+              setState(() {
+                _selectedArea = value;
+                _applyFilter();
+                _selectedRoom = null;
+                _selectedBedNumber = null;
+              });
+            }
+          },
         ),
       ),
     );
@@ -377,145 +445,105 @@ class _ChangeRoomSheetState extends State<ChangeRoomSheet> {
   /// 构建房间卡片
   Widget _buildRoomCard(Room room) {
     final isSelected = _selectedRoom?.id == room.id;
-    final area = AreaConfig.getByCode(room.roomArea);
+    // 计算已占用床位，使用totalCapacity（包含地铺）
+    final totalBeds = room.totalCapacity;
+    final occupiedBeds = (totalBeds - room.availableBeds).clamp(0, totalBeds);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      color: isSelected ? RoomColors.primary.withOpacity(0.05) : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-          color: isSelected ? RoomColors.primary : RoomColors.divider,
-          width: isSelected ? 2 : 1,
-        ),
-      ),
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _selectedRoom = room;
-            _selectedBedNumber = null;
-          });
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: area?.color.withOpacity(0.1) ?? RoomColors.divider,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      area?.name ?? room.roomArea,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: area?.color ?? RoomColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${room.roomNumber}号房',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: RoomColors.textPrimary,
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: RoomColors.available.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '空${room.availableBeds}床',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: RoomColors.available,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // 床位选择
-              if (isSelected) _buildBedSelection(room),
-            ],
+    // 判断是否为外住区域（gender为other）
+    final isOtherGender = room.roomGender == 'other';
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedRoom = room;
+          _selectedBedNumber = null; // 自动分配床位
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? RoomColors.primary.withOpacity(0.1) : RoomColors.cardBg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? RoomColors.primary : Colors.transparent,
+            width: 2,
           ),
         ),
-      ),
-    );
-  }
-
-  /// 构建床位选择
-  Widget _buildBedSelection(Room room) {
-    // 获取已占用的床位号
-    final occupiedBeds = _roomOccupiedBeds[room.id] ?? <int>{};
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: List.generate(room.totalCapacity, (index) {
-        final isFloorBed = index >= room.roomBeds;
-        final bedNumber = index + 1;
-        final isOccupied = occupiedBeds.contains(bedNumber);
-        final isSelected = _selectedBedNumber == bedNumber;
-
-        return ChoiceChip(
-          label: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isFloorBed ? Icons.bed_outlined : Icons.bed,
-                size: 14,
-                color: isOccupied
-                    ? RoomColors.textGrey
-                    : isSelected
-                        ? Colors.white
-                        : RoomColors.textPrimary,
-              ),
-              const SizedBox(width: 4),
-              Text(isFloorBed ? '地铺$bedNumber' : '床位$bedNumber'),
-            ],
-          ),
-          selected: isSelected,
-          onSelected: isOccupied
-              ? null
-              : (selected) {
-                  setState(() {
-                    _selectedBedNumber = selected ? bedNumber : null;
-                  });
-                },
-          selectedColor: RoomColors.primary,
-          labelStyle: TextStyle(
-            color: isOccupied
-                ? RoomColors.textGrey
-                : isSelected
-                    ? Colors.white
-                    : RoomColors.textPrimary,
-            fontSize: 12,
-          ),
-          backgroundColor: isOccupied ? RoomColors.divider.withOpacity(0.3) : Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
-            side: BorderSide(
-              color: isOccupied
-                  ? Colors.transparent
-                  : isSelected
-                      ? RoomColors.primary
-                      : RoomColors.divider,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  room.roomNumber,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: RoomColors.textPrimary,
+                  ),
+                ),
+                Row(
+                  children: [
+                    // 外住区域显示性别标识
+                    if (isOtherGender)
+                      Container(
+                        margin: const EdgeInsets.only(right: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: RoomColors.textGrey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: Text(
+                          '外',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: RoomColors.textGrey,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: room.availableBeds > 0
+                            ? RoomColors.available.withOpacity(0.1)
+                            : RoomColors.occupied.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        room.availableBeds > 0 ? '空闲' : '满员',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: room.availableBeds > 0 ? RoomColors.available : RoomColors.occupied,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ),
-        );
-      }),
+            const SizedBox(height: 8),
+            Text(
+              '$occupiedBeds/$totalBeds床',
+              style: TextStyle(
+                fontSize: 13,
+                color: RoomColors.textSecondary,
+              ),
+            ),
+            const Spacer(),
+            // 显示自动分配的床位
+            if (isSelected)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: RoomColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

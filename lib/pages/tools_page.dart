@@ -85,9 +85,9 @@ class ToolsPageState extends State<ToolsPage> {
                   },
                 ),
                 _buildQuickAccessItem(
-                  icon: Icons.bed_outlined,
+                  icon: Icons.people_outline,
                   label: '在寺人员',
-                  color: RoomColors.primary,
+                  color: Colors.indigo,
                   onTap: () {
                     Navigator.push(
                       context,

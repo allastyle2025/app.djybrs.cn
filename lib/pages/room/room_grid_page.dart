@@ -614,10 +614,15 @@ class RoomGridPageState extends State<RoomGridPage> {
   void _showRoomDetail(Room room) {
     final areaName = AreaConfig.getAreaName(room.roomArea);
     // 根据房间性别获取颜色
-    final genderColor = room.roomGender == 'male' 
-        ? const Color(0xff42A5F5)  // 男众亮蓝色
-        : const Color.fromARGB(255, 255, 107, 164);  // 女众亮粉色
-    
+    Color genderColor;
+    if (room.roomGender == 'male') {
+      genderColor = const Color(0xff42A5F5);  // 男众亮蓝色
+    } else if (room.roomGender == 'female') {
+      genderColor = const Color.fromARGB(255, 255, 107, 164);  // 女众亮粉色
+    } else {
+      genderColor = Colors.indigo;  // 外住区域使用靛蓝色
+    }
+
     RoomDetailSheet.show(
       context: context,
       room: room,
@@ -634,20 +639,25 @@ class RoomGridPageState extends State<RoomGridPage> {
   Widget _buildBedGrid(Room room) {
     final totalBeds = room.totalCapacity;
     final occupiedBeds = room.occupiedBeds;
-    
+
     // 限制最大显示数量，最多6列4行，共24个
     const maxBedsToShow = 24;
     final bedsToShow = totalBeds > maxBedsToShow ? maxBedsToShow : totalBeds;
-    
+
     // 正方形大小
     const squareSize = 8.0;
     const spacing = 1.0;
-    
+
     // 根据房间性别获取颜色
-    final genderColor = room.roomGender == 'male' 
-        ? const Color(0xff42A5F5)  // 男众亮蓝色
-        : const Color.fromARGB(255, 255, 107, 164);  // 女众亮粉色
-    
+    Color genderColor;
+    if (room.roomGender == 'male') {
+      genderColor = const Color(0xff42A5F5);  // 男众亮蓝色
+    } else if (room.roomGender == 'female') {
+      genderColor = const Color.fromARGB(255, 255, 107, 164);  // 女众亮粉色
+    } else {
+      genderColor = Colors.indigo;  // 外住区域使用靛蓝色
+    }
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
       child: Wrap(
