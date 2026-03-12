@@ -52,21 +52,17 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
   }
 
   void _filterCheckIns(String query) {
-    if (query.isEmpty && _selectedCategory == '待审') {
-      setState(() {
-        _filteredCheckIns = _checkIns;
-      });
-      return;
-    }
-
     final lowerQuery = query.toLowerCase();
     setState(() {
       _filteredCheckIns = _checkIns.where((checkIn) {
         // 分类过滤
-        if (_selectedCategory != '待审') {
-          // 使用 purpose 字段进行分类过滤
+        if (_selectedCategory == '待审') {
+          // 待审：过滤 PENDING 状态
+          if (checkIn.status != 'PENDING') return false;
+        } else {
+          // 其他分类：过滤 purpose 字段，并只显示 CHECKED_IN 状态
+          if (checkIn.status != 'CHECKED_IN') return false;
           final purpose = checkIn.purpose ?? '';
-          // 映射 purpose 到分类名称
           String category = _mapPurposeToCategory(purpose);
           if (category != _selectedCategory) return false;
         }
@@ -109,9 +105,10 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
   // 计算每个分类的数量
   int _getCategoryCount(String category) {
     if (category == '待审') {
-      return _checkIns.length;
+      return _checkIns.where((checkIn) => checkIn.status == 'PENDING').length;
     }
     return _checkIns.where((checkIn) {
+      if (checkIn.status != 'CHECKED_IN') return false;
       final purpose = checkIn.purpose ?? '';
       return _mapPurposeToCategory(purpose) == category;
     }).length;
@@ -129,7 +126,7 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
       _isLoading = false;
       if (response.isSuccess) {
         _checkIns = response.data;
-        _filteredCheckIns = response.data;
+        _filterCheckIns(_searchController.text);
       } else {
         _errorMessage = response.message;
       }
@@ -211,13 +208,14 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
                         final category = _categories[index];
                         final isSelected = _selectedCategory == category;
                         final count = _getCategoryCount(category);
+                        final categoryColor = _getCategoryColor(category, isSelected);
                         return GestureDetector(
                           onTap: () => _filterByCategory(category),
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 4),
                             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                             decoration: BoxDecoration(
-                              color: isSelected ? Colors.indigo.withOpacity(0.1) : null,
+                              color: isSelected ? categoryColor.withOpacity(0.1) : null,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(
@@ -230,7 +228,7 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
                                     height: 36,
                                     margin: const EdgeInsets.only(right: 8),
                                     decoration: BoxDecoration(
-                                      color: Colors.indigo,
+                                      color: categoryColor,
                                       borderRadius: BorderRadius.circular(2),
                                     ),
                                   )
@@ -246,7 +244,7 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
                                       Text(
                                         category,
                                         style: TextStyle(
-                                          color: isSelected ? Colors.indigo : RoomColors.textSecondary,
+                                          color: isSelected ? categoryColor : RoomColors.textSecondary,
                                           fontSize: 12,
                                           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                                         ),
@@ -257,7 +255,7 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
                                         '$count',
                                         style: TextStyle(
                                           fontSize: 16,
-                                          color: isSelected ? Colors.indigo : RoomColors.textPrimary,
+                                          color: isSelected ? categoryColor : RoomColors.textPrimary,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
@@ -281,6 +279,17 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
               ),
       ),
     );
+  }
+
+  Color _getCategoryColor(String category, bool isSelected) {
+    switch (category) {
+      case '待审':
+        return Colors.red;
+      case '义工':
+        return Colors.orange;
+      default:
+        return Colors.indigo;
+    }
   }
 
   Widget _buildErrorView() {
@@ -318,8 +327,13 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
   }
 
   Widget _buildListView() {
+    // 先过滤掉已退房和已拒绝的记录
+    final activeCheckIns = _filteredCheckIns.where((checkIn) {
+      return checkIn.status == 'CHECKED_IN' || checkIn.status == 'PENDING';
+    }).toList();
+    
     // 按入住时间倒序排序，最新入住的排在前面
-    final sortedCheckIns = List<RoomCheckIn>.from(_filteredCheckIns)
+    final sortedCheckIns = List<RoomCheckIn>.from(activeCheckIns)
       ..sort((a, b) => b.checkInTime.compareTo(a.checkInTime));
 
     return RefreshIndicator(
@@ -338,6 +352,21 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
         },
       ),
     );
+  }
+
+  Color _getStatusColor(String? status) {
+    switch (status) {
+      case 'PENDING':
+        return Colors.orange;
+      case 'CHECKED_IN':
+        return RoomColors.available;
+      case 'CHECKED_OUT':
+        return RoomColors.textSecondary;
+      case 'REJECTED':
+        return RoomColors.occupied;
+      default:
+        return RoomColors.textSecondary;
+    }
   }
 
   Widget _buildCheckInItem(RoomCheckIn checkIn, int index) {
@@ -390,59 +419,59 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
                             Row(
                               children: [
                                 // 姓名
-                                Text(
-                                  checkIn.cname,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: RoomColors.textPrimary,
+                            Text(
+                              checkIn.cname,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: RoomColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // 性别标签
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: checkIn.genderColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    checkIn.cgender == 'male'
+                                        ? Icons.male
+                                        : Icons.female,
+                                    size: 12,
+                                    color: checkIn.genderColor,
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                // 性别标签
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    checkIn.genderDisplayName,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: checkIn.genderColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: checkIn.genderColor.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        checkIn.cgender == 'male'
-                                            ? Icons.male
-                                            : Icons.female,
-                                        size: 12,
-                                        color: checkIn.genderColor,
+                                  // 年龄
+                                  if (checkIn.cage != null) ...[
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${checkIn.cage}岁',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: RoomColors.textSecondary,
+                                        fontWeight: FontWeight.w500,
                                       ),
-                                      const SizedBox(width: 2),
-                                      Text(
-                                        checkIn.genderDisplayName,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: checkIn.genderColor,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      // 年龄
-                                      if (checkIn.cage != null) ...[
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${checkIn.cage}岁',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: RoomColors.textSecondary,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
                               ],
                             ),
                             const SizedBox(height: 6),
@@ -503,6 +532,26 @@ class _CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
                               ),
                             ),
                           ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      // 状态标签
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(checkIn.status).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          checkIn.statusDisplayName,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _getStatusColor(checkIn.status),
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                       // 备注 Badge（如果有）

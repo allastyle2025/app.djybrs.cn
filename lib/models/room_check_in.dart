@@ -139,6 +139,22 @@ class RoomCheckIn {
         return const Color(0xff999999);
     }
   }
+
+  // 获取状态显示文本
+  String get statusDisplayName {
+    switch (status) {
+      case 'PENDING':
+        return '待审核';
+      case 'CHECKED_IN':
+        return '入住中';
+      case 'CHECKED_OUT':
+        return '已退房';
+      case 'REJECTED':
+        return '已拒绝';
+      default:
+        return status ?? '';
+    }
+  }
 }
 
 class RoomCheckInResponse {

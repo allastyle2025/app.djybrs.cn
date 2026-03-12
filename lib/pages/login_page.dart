@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../room_colors.dart';
 import '../services/auth_service.dart';
 import 'dashboard_page.dart';
@@ -17,6 +18,45 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _rememberMe = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedUsername = prefs.getString('saved_username');
+    final savedPassword = prefs.getString('saved_password');
+    final rememberMe = prefs.getBool('remember_me') ?? false;
+
+    if (mounted) {
+      setState(() {
+        _rememberMe = rememberMe;
+        if (rememberMe && savedUsername != null) {
+          _usernameController.text = savedUsername;
+        }
+        if (rememberMe && savedPassword != null) {
+          _passwordController.text = savedPassword;
+        }
+      });
+    }
+  }
+
+  Future<void> _saveCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_rememberMe) {
+      await prefs.setString('saved_username', _usernameController.text.trim());
+      await prefs.setString('saved_password', _passwordController.text);
+      await prefs.setBool('remember_me', true);
+    } else {
+      await prefs.remove('saved_username');
+      await prefs.remove('saved_password');
+      await prefs.setBool('remember_me', false);
+    }
+  }
 
   @override
   void dispose() {
@@ -45,6 +85,9 @@ class _LoginPageState extends State<LoginPage> {
 
     if (response.success) {
       if (mounted) {
+        // 保存登录信息（如果勾选了记住登录）
+        await _saveCredentials();
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('欢迎回来，${response.user?.userName ?? ''}'),
@@ -205,6 +248,37 @@ class _LoginPageState extends State<LoginPage> {
                 ),
 
                 const SizedBox(height: 24),
+
+                // 记住登录复选框
+                Row(
+                  children: [
+                    Checkbox(
+                      value: _rememberMe,
+                      onChanged: (value) {
+                        setState(() {
+                          _rememberMe = value ?? false;
+                        });
+                      },
+                      activeColor: RoomColors.primary,
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _rememberMe = !_rememberMe;
+                        });
+                      },
+                      child: Text(
+                        '记住登录',
+                        style: TextStyle(
+                          color: RoomColors.textSecondary,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
 
                 // 登录按钮
                 SizedBox(
