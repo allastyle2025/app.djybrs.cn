@@ -10,5 +10,6 @@ class ApiResponse<T> {
     this.data,
   });
 
-  bool get isSuccess => code == 200;
+  /// Treat any 2xx HTTP status code as success.
+  bool get isSuccess => code >= 200 && code < 300;
 }

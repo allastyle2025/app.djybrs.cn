@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,11 +5,8 @@ import '../components/about_dialog.dart';
 import '../components/menu_section.dart';
 import '../components/room_app_bar.dart';
 import '../components/room_bottom_nav.dart';
-import '../models/message.dart';
 import '../room_colors.dart';
 import '../services/auth_service.dart';
-import '../services/local_message_service.dart';
-import '../services/notification_service.dart';
 import '../services/room_service.dart';
 import '../theme_manager.dart';
 import '../theme_provider.dart';
@@ -19,13 +15,11 @@ import '../components/user_profile_dialog.dart';
 import 'appearance_settings_page.dart';
 import 'home_page.dart';
 import 'login_page.dart';
-import 'message_page.dart';
 import 'room/check_in_registration_page.dart';
 import 'room/current_check_ins_page.dart';
 import 'room/room_grid_page.dart';
 import 'room/room_list_page.dart';
 import 'server_settings_page.dart';
-import 'tab_settings_page.dart';
 import 'tools_page.dart';
 import 'user_management_page.dart';
 import 'volunteer_application_page.dart';
@@ -59,220 +53,22 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-// 全局状态引用，用于子页面刷新badge
-_DashboardPageState? _dashboardState;
-
-/// 获取Dashboard状态，用于子页面刷新badge
-_DashboardPageState? get dashboardState => _dashboardState;
-
-/// 全局刷新消息badge的Stream
-final StreamController<void> _badgeRefreshController = StreamController<void>.broadcast();
-Stream<void> get badgeRefreshStream => _badgeRefreshController.stream;
-
-/// 触发刷新消息badge
-void refreshBadge() {
-  _badgeRefreshController.add(null);
-}
-
-/// 全局刷新人员badge的Stream
-final StreamController<void> _personnelBadgeRefreshController = StreamController<void>.broadcast();
-Stream<void> get personnelBadgeRefreshStream => _personnelBadgeRefreshController.stream;
-
-/// 触发刷新人员badge
-void refreshPersonnelBadge() {
-  _personnelBadgeRefreshController.add(null);
-}
-
 class _DashboardPageState extends State<DashboardPage> {
   int _currentIndex = 0;
   final TextEditingController _searchController = TextEditingController();
   int _themeVersion = 0; // 用于强制重建子页面
   final PageController _pageController = PageController();
   bool _enableTabSwipe = false; // 是否启用Tab左右滑动
-  bool _showMessageTab = false; // 是否显示消息tab（默认隐藏）
-  bool _showHomeTab = true; // 是否显示首页tab
-  bool _showPersonnelTab = true; // 是否显示人员tab
-  bool _showRoomTab = false; // 是否显示房间tab
-  bool _showToolsTab = true; // 是否显示工具tab
-  bool _showProfileTab = true; // 是否显示我的tab
-  int _messageBadgeCount = 0; // 消息tab的未读数量
-  int _personnelBadgeCount = 0; // 人员tab的待审核数量
   final GlobalKey<HomePageState> _homeKey = GlobalKey<HomePageState>();
-  
-  // SSE 通知服务
-  final NotificationService _notificationService = NotificationService();
-  StreamSubscription<Message>? _messageSubscription;
-  StreamSubscription<bool>? _connectionStatusSubscription;
-  final GlobalKey<CurrentCheckInsPageState> _currentKey = GlobalKey<CurrentCheckInsPageState>();
   final GlobalKey<RoomGridPageState> _roomGridKey = GlobalKey<RoomGridPageState>();
   final GlobalKey<ToolsPageState> _toolsKey = GlobalKey<ToolsPageState>();
-  final GlobalKey<MessagePageState> _messageKey = GlobalKey<MessagePageState>();
 
-  // 页面标题根据当前导航生成
-  String _getTitle(int index) {
-    final visibleTabs = _getVisibleTabs();
-    final tabNames = ['消息', '首页', '人员', '房间', '工具', '我的'];
-    final tabKeys = ['message', 'home', 'personnel', 'room', 'tools', 'profile'];
-    
-    // 获取当前可见tab的索引
-    int visibleIndex = 0;
-    for (int i = 0; i < tabKeys.length; i++) {
-      if (visibleTabs[tabKeys[i]] == true) {
-        if (visibleIndex == index) {
-          return tabNames[i];
-        }
-        visibleIndex++;
-      }
-    }
-    return '未知';
-  }
-
-  // 获取可见tab的映射
-  Map<String, bool> _getVisibleTabs() {
-    return {
-      'message': _showMessageTab,
-      'home': _showHomeTab,
-      'personnel': _showPersonnelTab,
-      'room': _showRoomTab,
-      'tools': _showToolsTab,
-      'profile': _showProfileTab,
-    };
-  }
-
-  // 获取可见tab的数量
-  int _getVisibleTabCount() {
-    return _getVisibleTabs().values.where((visible) => visible).length;
-  }
-
-  // 根据可见索引获取页面列表中的实际索引
-  int _getActualPageIndex(int visibleIndex) {
-    // 页面列表和导航栏的顺序是一致的，所以直接返回visibleIndex
-    return visibleIndex;
-  }
-
-  // 根据页面列表中的实际索引获取可见索引
-  int _getVisibleIndex(int actualIndex) {
-    // 页面列表和导航栏的顺序是一致的，所以直接返回actualIndex
-    return actualIndex;
-  }
-
-  // 判断是否应该隐藏AppBar
-  // 人员页和消息页有自己的AppBar，需要隐藏dashboard的AppBar
-  bool _shouldHideAppBar(int visibleIndex) {
-    final visibleTabs = _getVisibleTabs();
-    final tabKeys = ['message', 'home', 'personnel', 'room', 'tools', 'profile'];
-    
-    // 找到当前可见索引对应的实际tab
-    int currentVisibleIndex = 0;
-    for (int i = 0; i < tabKeys.length; i++) {
-      if (visibleTabs[tabKeys[i]] == true) {
-        if (currentVisibleIndex == visibleIndex) {
-          // 如果是人员页或消息页，隐藏AppBar
-          return tabKeys[i] == 'personnel' || tabKeys[i] == 'message';
-        }
-        currentVisibleIndex++;
-      }
-    }
-    return false;
-  }
+  final List<String> _titles = ['首页', '房间', '工具', '我的'];
 
   @override
-  StreamSubscription<void>? _badgeRefreshSubscription;
-  StreamSubscription<void>? _personnelBadgeRefreshSubscription;
-
   void initState() {
     super.initState();
-    _dashboardState = this;
     _loadSettings();
-    _loadUnreadCount();
-    _loadPendingCount();
-    
-    // 监听全局刷新消息badge事件
-    _badgeRefreshSubscription = _badgeRefreshController.stream.listen((_) {
-      print('🔄 Dashboard 收到刷新消息 badge 事件');
-      _loadUnreadCount();
-    });
-    
-    // 监听全局刷新人员badge事件
-    _personnelBadgeRefreshSubscription = _personnelBadgeRefreshController.stream.listen((_) {
-      print('🔄 Dashboard 收到刷新人员 badge 事件');
-      _loadPendingCount();
-    });
-    
-    // 初始化 SSE 连接（无论消息Tab是否显示，都要连接SSE）
-    _initNotificationService();
-  }
-  
-  /// 初始化 SSE 通知服务
-  void _initNotificationService() {
-    print('📡 Dashboard 初始化 SSE 连接');
-    
-    // 监听连接状态
-    _connectionStatusSubscription = _notificationService.connectionStatusStream.listen((connected) {
-      print('📡 Dashboard SSE 连接状态: $connected');
-    });
-    
-    // 监听新消息
-    _messageSubscription = _notificationService.messageStream.listen(
-      (newMessage) async {
-        print('📨 Dashboard 收到新消息: ${newMessage.content}');
-        print('📨 Dashboard 助手类型: ${newMessage.assistantType}');
-        
-        // 保存消息到本地
-        await LocalMessageService.saveMessage(newMessage);
-        await LocalMessageService.saveChatMessage(newMessage.assistantId, newMessage);
-        
-        // 刷新消息badge
-        _loadUnreadCount();
-        
-        // 如果是入住登记消息，刷新人员页面
-        if (newMessage.type == 'room_checkin') {
-          print('🏨 Dashboard 收到入住登记消息，刷新人员页面');
-          _currentKey.currentState?.refreshData();
-          _loadPendingCount();
-        }
-      },
-      onError: (error) {
-        print('📨 Dashboard SSE 错误: $error');
-      },
-    );
-    
-    // 连接 SSE
-    _notificationService.connect();
-  }
-
-  // 加载未读消息数量
-  Future<void> _loadUnreadCount() async {
-    final count = await LocalMessageService.getTotalUnreadCount();
-    setState(() {
-      _messageBadgeCount = count;
-    });
-  }
-
-  // 加载待审核人员数量
-  Future<void> _loadPendingCount() async {
-    try {
-      final response = await RoomService.getCurrentCheckIns();
-      if (response.isSuccess && response.data != null) {
-        final pendingCount = response.data!.where((checkIn) => checkIn.status == 'PENDING').length;
-        setState(() {
-          _personnelBadgeCount = pendingCount;
-        });
-        print('👥 Dashboard 待审核数量: $pendingCount');
-      }
-    } catch (e) {
-      print('❌ 加载待审核数量失败: $e');
-    }
-  }
-
-  // 刷新未读消息数量（供外部调用）
-  void refreshUnreadCount() {
-    _loadUnreadCount();
-  }
-  
-  // 刷新待审核数量（供外部调用）
-  void refreshPendingCount() {
-    _loadPendingCount();
   }
 
   // 加载设置
@@ -280,103 +76,20 @@ class _DashboardPageState extends State<DashboardPage> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _enableTabSwipe = prefs.getBool('enableTabSwipe') ?? false;
-      _showMessageTab = prefs.getBool('showMessageTab') ?? false;
-      _showHomeTab = prefs.getBool('showHomeTab') ?? true;
-      _showPersonnelTab = prefs.getBool('showPersonnelTab') ?? true;
-      _showRoomTab = prefs.getBool('showRoomTab') ?? false;
-      _showToolsTab = prefs.getBool('showToolsTab') ?? true;
-      _showProfileTab = prefs.getBool('showProfileTab') ?? true;
     });
   }
 
-  // 构建页面列表
-  List<Widget> _buildPageList() {
-    final List<Widget> pages = [];
-    
-    if (_showMessageTab) {
-      pages.add(KeepAliveWrapper(child: MessagePage(key: _messageKey)));
-    }
-    
-    if (_showHomeTab) {
-      pages.add(KeepAliveWrapper(child: HomePage(
-        key: _homeKey,
-        onDataChanged: () {
-          // 首页数据变更时刷新人员和房间
-          _currentKey.currentState?.refreshData();
-          _roomGridKey.currentState?.refreshRooms();
-        },
-      )));
-    }
-    
-    if (_showPersonnelTab) {
-      pages.add(KeepAliveWrapper(child: CurrentCheckInsPage(
-        key: _currentKey,
-        onDataChanged: () {
-          _homeKey.currentState?.refreshData();
-        },
-      )));
-    }
-    
-    if (_showRoomTab) {
-      pages.add(KeepAliveWrapper(child: RoomGridPage(
-        key: _roomGridKey,
-        onDataChanged: () {
-          _homeKey.currentState?.refreshData();
-        },
-      )));
-    }
-    
-    if (_showToolsTab) {
-      pages.add(KeepAliveWrapper(child: ToolsPage(key: _toolsKey)));
-    }
-    
-    if (_showProfileTab) {
-      pages.add(KeepAliveWrapper(child: _buildProfilePage()));
-    }
-    
-    return pages;
-  }
-
-  // 处理导航点击
-  void _onItemTapped(int visibleIndex) {
-    final actualIndex = _getActualPageIndex(visibleIndex);
+  void _onItemTapped(int index) {
     setState(() {
-      _currentIndex = visibleIndex;
+      _currentIndex = index;
     });
     // 直接跳转，不使用滑动动画
-    _pageController.jumpToPage(actualIndex);
-    
-    // 如果切换到消息页面，刷新未读数量；切换到人员页面，刷新待审核数量
-    final visibleTabs = _getVisibleTabs();
-    final tabKeys = ['message', 'home', 'personnel', 'room', 'tools', 'profile'];
-    int currentVisibleIndex = 0;
-    for (int i = 0; i < tabKeys.length; i++) {
-      if (visibleTabs[tabKeys[i]] == true) {
-        if (currentVisibleIndex == visibleIndex) {
-          if (tabKeys[i] == 'message') {
-            // 切换到消息页面，延迟刷新未读数量
-            Future.delayed(const Duration(milliseconds: 500), () {
-              _loadUnreadCount();
-            });
-          } else if (tabKeys[i] == 'personnel') {
-            // 切换到人员页面，重置分类到待审核并刷新数据
-            Future.delayed(const Duration(milliseconds: 100), () {
-              _currentKey.currentState?.resetToPendingCategory();
-              _loadPendingCount();
-            });
-          }
-          break;
-        }
-        currentVisibleIndex++;
-      }
-    }
+    _pageController.jumpToPage(index);
   }
 
-  // 处理页面切换
-  void _onPageChanged(int actualIndex) {
-    final visibleIndex = _getVisibleIndex(actualIndex);
+  void _onPageChanged(int index) {
     setState(() {
-      _currentIndex = visibleIndex;
+      _currentIndex = index;
     });
   }
 
@@ -427,12 +140,6 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
-    _dashboardState = null;
-    _badgeRefreshSubscription?.cancel();
-    _personnelBadgeRefreshSubscription?.cancel();
-    _messageSubscription?.cancel();
-    _connectionStatusSubscription?.cancel();
-    _notificationService.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -537,12 +244,10 @@ class _DashboardPageState extends State<DashboardPage> {
       onWillPop: _onWillPop,
       child: Scaffold(
         backgroundColor: RoomColors.background,
-        appBar: _shouldHideAppBar(_currentIndex)
-            ? null
-            : RoomAppBar(
-                title: _getTitle(_currentIndex),
-                actions: _buildActions(),
-              ),
+        appBar: RoomAppBar(
+          title: _titles[_currentIndex],
+          actions: _buildActions(),
+        ),
       body: PageView(
         controller: _pageController,
         onPageChanged: _onPageChanged,
@@ -550,19 +255,28 @@ class _DashboardPageState extends State<DashboardPage> {
             ? const ClampingScrollPhysics()
             : const NeverScrollableScrollPhysics(),
         allowImplicitScrolling: _enableTabSwipe,
-        children: _buildPageList(),
+        children: [
+          KeepAliveWrapper(child: HomePage(
+            key: _homeKey,
+            onDataChanged: () {
+              // 首页数据变更时刷新Grid
+              _roomGridKey.currentState?.refreshRooms();
+            },
+          )),
+          KeepAliveWrapper(child: RoomGridPage(
+            key: _roomGridKey,
+            onDataChanged: () {
+              // Grid页面数据变更时刷新首页
+              _homeKey.currentState?.refreshData();
+            },
+          )),
+          KeepAliveWrapper(child: ToolsPage(key: _toolsKey)),
+          KeepAliveWrapper(child: _buildProfilePage()),
+        ],
       ),
       bottomNavigationBar: RoomBottomNav(
         currentIndex: _currentIndex,
         onTap: _onItemTapped,
-        showMessage: _showMessageTab,
-        showHome: _showHomeTab,
-        showPersonnel: _showPersonnelTab,
-        showRoom: _showRoomTab,
-        showTools: _showToolsTab,
-        showProfile: _showProfileTab,
-        messageBadgeCount: _messageBadgeCount,
-        personnelBadgeCount: _personnelBadgeCount,
       ),
       ),
     );
@@ -662,70 +376,55 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   List<Widget>? _buildActions() {
-    // 获取当前可见的tab列表
-    final visibleTabs = _getVisibleTabs();
-    final tabKeys = ['message', 'home', 'personnel', 'room', 'tools', 'profile'];
-    
-    // 找到当前索引对应的tab类型
-    String currentTab = '';
-    int visibleIndex = 0;
-    for (int i = 0; i < tabKeys.length; i++) {
-      if (visibleTabs[tabKeys[i]] == true) {
-        if (visibleIndex == _currentIndex) {
-          currentTab = tabKeys[i];
-          break;
-        }
-        visibleIndex++;
-      }
+    if (_currentIndex == 0) {
+      // 首页 - 显示主题切换按钮（搜索按钮暂时隐藏）
+      return [
+        // 搜索按钮（暂时隐藏）
+        // IconButton(
+        //   icon: Icon(Icons.search, color: RoomColors.textPrimary),
+        //   onPressed: () {
+        //     // 搜索功能
+        //   },
+        // ),
+        IconButton(
+          icon: Icon(
+            _getThemeIcon(),
+            color: RoomColors.textPrimary,
+          ),
+          onPressed: () {
+            _toggleTheme();
+          },
+        ),
+      ];
+    } else if (_currentIndex == 1) {
+      // 房间页面 - 显示刷新按钮
+      return [
+        IconButton(
+          icon: Icon(Icons.refresh, color: RoomColors.textPrimary),
+          onPressed: () {
+            _roomGridKey.currentState?.refreshRooms();
+          },
+        ),
+      ];
+    } else if (_currentIndex == 2) {
+      // 工具页面 - 显示刷新按钮（设置按钮暂时隐藏）
+      return [
+        IconButton(
+          icon: Icon(Icons.refresh, color: RoomColors.textPrimary),
+          onPressed: () {
+            _toolsKey.currentState?.refreshSettings();
+          },
+        ),
+        // 设置按钮（暂时隐藏）
+        // IconButton(
+        //   icon: Icon(Icons.settings_outlined, color: RoomColors.textPrimary),
+        //   onPressed: () {
+        //     // 设置功能
+        //   },
+        // ),
+      ];
     }
-    
-    switch (currentTab) {
-      case 'home':
-        // 首页 - 显示主题切换按钮
-        return [
-          IconButton(
-            icon: Icon(
-              _getThemeIcon(),
-              color: RoomColors.textPrimary,
-            ),
-            onPressed: () {
-              _toggleTheme();
-            },
-          ),
-        ];
-      case 'personnel':
-        // 当前人员页
-        return [
-          IconButton(
-            icon: Icon(Icons.refresh, color: RoomColors.textPrimary),
-            onPressed: () {
-              _currentKey.currentState?.refreshData();
-            },
-          ),
-        ];
-      case 'room':
-        // 房间页
-        return [
-          IconButton(
-            icon: Icon(Icons.refresh, color: RoomColors.textPrimary),
-            onPressed: () {
-              _roomGridKey.currentState?.refreshRooms();
-            },
-          ),
-        ];
-      case 'tools':
-        // 工具页
-        return [
-          IconButton(
-            icon: Icon(Icons.refresh, color: RoomColors.textPrimary),
-            onPressed: () {
-              _toolsKey.currentState?.refreshSettings();
-            },
-          ),
-        ];
-      default:
-        return null;
-    }
+    return null;
   }
 
   Widget _buildProfilePage() {
@@ -893,16 +592,6 @@ class _DashboardPageState extends State<DashboardPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const AppearanceSettingsPage()),
-                  );
-                },
-              ),
-              MenuItem(
-                icon: Icons.tab_outlined,
-                title: 'Tab显示设置',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const TabSettingsPage()),
                   );
                 },
               ),

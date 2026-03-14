@@ -459,6 +459,52 @@ class RoomService {
     }
   }
 
+  // 更新房间备注 (PUT /api/rooms/{id})
+  static Future<ApiResponse<void>> updateRoomRemark(int roomId, String remark) async {
+    try {
+      final body = json.encode({
+        'remark': remark,
+      });
+
+      print('=== 更新房间备注请求 ===');
+      print('URL: $baseUrl/api/rooms/$roomId');
+      print('Method: PUT');
+      print('Body: $body');
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/api/rooms/$roomId'),
+        headers: _getHeaders(),
+        body: body,
+      );
+
+      print('=== 更新房间备注响应 ===');
+      print('Status Code: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResponse<void>(
+          code: response.statusCode,
+          data: null,
+          message: '备注更新成功',
+        );
+      } else {
+        return ApiResponse<void>(
+          code: response.statusCode,
+          data: null,
+          message: '备注更新失败: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      print('=== 更新房间备注错误 ===');
+      print('Error: $e');
+      return ApiResponse<void>(
+        code: 500,
+        data: null,
+        message: '网络错误: $e',
+      );
+    }
+  }
+
   // 获取用户历史入住记录
   static Future<CheckInHistoryResponse> getUserCheckInHistory(int userId) async {
     try {
@@ -612,6 +658,68 @@ class RoomService {
       }
     } catch (e) {
       return AppVersionResponse(
+        code: 500,
+        message: '网络错误: $e',
+        data: null,
+      );
+    }
+  }
+
+  // 通过待审核入住申请
+  static Future<ApiResponse<void>> approveCheckIn(int checkInId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/room-check-ins/$checkInId/approve'),
+        headers: _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        return ApiResponse(
+          code: jsonData['code'] ?? 200,
+          message: jsonData['message'] ?? '审核通过成功',
+          data: null,
+        );
+      } else {
+        return ApiResponse(
+          code: response.statusCode,
+          message: '审核失败: ${response.statusCode}',
+          data: null,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(
+        code: 500,
+        message: '网络错误: $e',
+        data: null,
+      );
+    }
+  }
+
+  // 拒绝待审核入住申请
+  static Future<ApiResponse<void>> rejectCheckIn(int checkInId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/room-check-ins/$checkInId/reject'),
+        headers: _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        return ApiResponse(
+          code: jsonData['code'] ?? 200,
+          message: jsonData['message'] ?? '已拒绝',
+          data: null,
+        );
+      } else {
+        return ApiResponse(
+          code: response.statusCode,
+          message: '操作失败: ${response.statusCode}',
+          data: null,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(
         code: 500,
         message: '网络错误: $e',
         data: null,

@@ -13,7 +13,7 @@ class RoomDetailSheet extends StatelessWidget {
   final Room room;
   final String areaName;
   final Color genderColor;
-  final VoidCallback? onRoomChanged;
+  final ValueChanged<Room>? onRoomChanged;
 
   const RoomDetailSheet({
     super.key,
@@ -29,7 +29,7 @@ class RoomDetailSheet extends StatelessWidget {
     required Room room,
     required String areaName,
     required Color genderColor,
-    VoidCallback? onRoomChanged,
+    ValueChanged<Room>? onRoomChanged,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -60,7 +60,7 @@ class _RoomDetailContent extends StatefulWidget {
   final Room room;
   final String areaName;
   final Color genderColor;
-  final VoidCallback? onRoomChanged;
+  final ValueChanged<Room>? onRoomChanged;
 
   const _RoomDetailContent({
     required this.room,
@@ -73,20 +73,112 @@ class _RoomDetailContent extends StatefulWidget {
   State<_RoomDetailContent> createState() => _RoomDetailContentState();
 }
 
+enum _RoomDetailMenuAction {
+  editRemark,
+  clearRemark,
+}
+
 class _RoomDetailContentState extends State<_RoomDetailContent> {
   late Future<RoomCheckInResponse> _future;
+  late Room _room;
 
   @override
   void initState() {
     super.initState();
-    _future = RoomService.getRoomCheckIns(widget.room.id);
+    _room = widget.room;
+    _future = RoomService.getRoomCheckIns(_room.id);
   }
 
   /// 刷新入住信息
   void _refreshCheckIns() {
     setState(() {
-      _future = RoomService.getRoomCheckIns(widget.room.id);
+      _future = RoomService.getRoomCheckIns(_room.id);
     });
+  }
+
+  /// 显示编辑备注对话框
+  void _showEditRemarkDialog() {
+    final TextEditingController controller = TextEditingController(text: _room.remark ?? '');
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        title: const Text('编辑房间备注'),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.85,
+          ),
+          child: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: '请输入备注内容...',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
+            maxLength: 200,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newRemark = controller.text.trim();
+              
+              final response = await RoomService.updateRoomRemark(_room.id, newRemark);
+              
+              if (!mounted) return;
+              
+              Navigator.pop(context);
+              
+              if (response.isSuccess) {
+                setState(() {
+                  _room = Room(
+                    id: _room.id,
+                    roomArea: _room.roomArea,
+                    roomNumber: _room.roomNumber,
+                    roomGender: _room.roomGender,
+                    roomBeds: _room.roomBeds,
+                    roomFloorMattress: _room.roomFloorMattress,
+                    status: _room.status,
+                    remark: newRemark.isEmpty ? null : newRemark,
+                    createdAt: _room.createdAt,
+                    updatedAt: _room.updatedAt,
+                    availableBeds: _room.availableBeds,
+                    totalCapacity: _room.totalCapacity,
+                  );
+                });
+                
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('备注更新成功'),
+                    backgroundColor: RoomColors.available,
+                  ),
+                );
+                
+                RoomDataNotifier().notifyDataChanged();
+                widget.onRoomChanged?.call(_room);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(response.message),
+                    backgroundColor: RoomColors.occupied,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: RoomColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 显示入住人详情
@@ -105,7 +197,7 @@ class _RoomDetailContentState extends State<_RoomDetailContent> {
       onChangeRoom: () => _showChangeRoomSheet(checkIn),
       onPurposeUpdated: () {
         _refreshCheckIns();
-        widget.onRoomChanged?.call();
+        widget.onRoomChanged?.call(_room);
       },
     );
   }
@@ -152,7 +244,7 @@ class _RoomDetailContentState extends State<_RoomDetailContent> {
         );
         _refreshCheckIns();
         RoomDataNotifier().notifyDataChanged();
-        widget.onRoomChanged?.call();
+        widget.onRoomChanged?.call(_room);
       }
     } else {
       if (mounted) {
@@ -173,7 +265,7 @@ class _RoomDetailContentState extends State<_RoomDetailContent> {
       checkIn: checkIn,
       onRoomChanged: () {
         _refreshCheckIns();
-        widget.onRoomChanged?.call();
+        widget.onRoomChanged?.call(widget.room);
       },
     );
   }
@@ -238,7 +330,7 @@ class _RoomDetailContentState extends State<_RoomDetailContent> {
                           Row(
                             children: [
                               Text(
-                                '${widget.areaName}-${widget.room.roomNumber}',
+                                '${widget.areaName}-${_room.roomNumber}',
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w600,
@@ -249,27 +341,27 @@ class _RoomDetailContentState extends State<_RoomDetailContent> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: widget.room.isFull 
+                                  color: _room.isFull 
                                       ? const Color(0xFFFFEBEE)
-                                      : widget.room.status == 'maintenance'
+                                      : _room.status == 'maintenance'
                                           ? const Color(0xFFFFF8E1)
-                                          : _getStatusColor(widget.room.status).withOpacity(0.1),
+                                          : _getStatusColor(_room.status).withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(4),
                                   border: Border.all(
-                                    color: widget.room.isFull 
+                                    color: _room.isFull 
                                         ? const Color(0xFFEF9A9A)
-                                        : widget.room.status == 'maintenance'
+                                        : _room.status == 'maintenance'
                                             ? const Color(0xFFFFE082)
-                                            : _getStatusColor(widget.room.status).withOpacity(0.3),
-                                    width: 1,
+                                            : _getStatusColor(_room.status).withOpacity(0.3),
+                                    width:1,
                                   ),
                                 ),
                                 child: Text(
-                                  widget.room.statusDisplayName,
+                                  _room.statusDisplayName,
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w500,
-                                    color: widget.room.statusColor,
+                                    color: _room.statusColor,
                                   ),
                                 ),
                               ),
@@ -285,13 +377,13 @@ class _RoomDetailContentState extends State<_RoomDetailContent> {
                               ),
                               const SizedBox(width: 2),
                               Text(
-                                '${widget.room.roomBeds}  ',
+                                '${_room.roomBeds}  ',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: RoomColors.textSecondary,
                                 ),
                               ),
-                              if (widget.room.roomFloorMattress > 0) ...[
+                              if (_room.roomFloorMattress > 0) ...[
                                 const SizedBox(width: 8),
                                 Icon(
                                   Icons.layers_outlined,
@@ -300,7 +392,7 @@ class _RoomDetailContentState extends State<_RoomDetailContent> {
                                 ),
                                 const SizedBox(width: 2),
                                 Text(
-                                  '${widget.room.roomFloorMattress}   ',
+                                  '${_room.roomFloorMattress}   ',
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: RoomColors.textSecondary,
@@ -308,7 +400,7 @@ class _RoomDetailContentState extends State<_RoomDetailContent> {
                                 ),
                               ],
                               Text(
-                                '  ID:${widget.room.id}',
+                                '  ID:${_room.id}',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: RoomColors.textSecondary,
@@ -319,11 +411,71 @@ class _RoomDetailContentState extends State<_RoomDetailContent> {
                         ],
                       ),
                     ),
-                    _buildGenderBadge(widget.room.roomGender),
+                    Row(
+                      children: [
+                        _buildGenderBadge(_room.roomGender),
+                        const SizedBox(width: 8),
+                        _buildMoreMenu(),
+                      ],
+                    ),
                   ],
                 ),
               ),
               Divider(color: RoomColors.divider, height: 1),
+              // 房间备注
+              if (_room.remark != null && _room.remark!.isNotEmpty)
+                GestureDetector(
+                  onTap: () => _showEditRemarkDialog(),
+                  child: Padding(
+                    padding: const EdgeInsets.all(0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 0),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: Colors.orange.withOpacity(0.3),
+                              width: 0.5,
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.note_outlined,
+                                size: 14,
+                                color: Colors.orange.shade700,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _room.remark!,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.orange.shade700,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Icon(
+                                Icons.edit,
+                                size: 14,
+                                color: Colors.orange.shade700,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (_room.remark != null && _room.remark!.isNotEmpty)
+                Divider(color: RoomColors.divider, height: 1),
               // 床位列表
               Expanded(
                 child: Padding(
@@ -344,9 +496,9 @@ class _RoomDetailContentState extends State<_RoomDetailContent> {
                                 crossAxisSpacing: 8,
                                 mainAxisSpacing: 8,
                               ),
-                              itemCount: widget.room.totalCapacity,
+                              itemCount: _room.totalCapacity,
                               itemBuilder: (context, index) {
-                                final isBed = index < widget.room.roomBeds;
+                                final isBed = index < _room.roomBeds;
                                 final bedNumber = index + 1;
                                 
                                 RoomCheckIn? checkIn;
@@ -411,6 +563,88 @@ class _RoomDetailContentState extends State<_RoomDetailContent> {
         ),
       ),
     );
+  }
+
+  Widget _buildMoreMenu() {
+    final hasRemark = _room.remark?.isNotEmpty ?? false;
+    return PopupMenuButton<_RoomDetailMenuAction>(
+      padding: EdgeInsets.zero,
+      icon: Icon(Icons.more_vert, color: RoomColors.textSecondary),
+      color: RoomColors.cardBg,
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: RoomColors.divider.withOpacity(0.5)),
+      ),
+      onSelected: (action) {
+        switch (action) {
+          case _RoomDetailMenuAction.editRemark:
+            _showEditRemarkDialog();
+            break;
+          case _RoomDetailMenuAction.clearRemark:
+            _clearRemark();
+            break;
+        }
+      },
+      itemBuilder: (context) {
+        return [
+          PopupMenuItem(
+            value: _RoomDetailMenuAction.editRemark,
+            child: Text(
+              hasRemark ? '编辑备注' : '添加备注',
+              style: TextStyle(color: RoomColors.textPrimary),
+            ),
+          ),
+          if (hasRemark)
+            PopupMenuItem(
+              value: _RoomDetailMenuAction.clearRemark,
+              child: Text(
+                '清除备注',
+                style: TextStyle(color: RoomColors.textPrimary),
+              ),
+            ),
+        ];
+      },
+    );
+  }
+
+  Future<void> _clearRemark() async {
+    final response = await RoomService.updateRoomRemark(_room.id, '');
+    if (!mounted) return;
+
+    if (response.isSuccess) {
+      setState(() {
+        _room = Room(
+          id: _room.id,
+          roomArea: _room.roomArea,
+          roomNumber: _room.roomNumber,
+          roomGender: _room.roomGender,
+          roomBeds: _room.roomBeds,
+          roomFloorMattress: _room.roomFloorMattress,
+          status: _room.status,
+          remark: null,
+          createdAt: _room.createdAt,
+          updatedAt: _room.updatedAt,
+          availableBeds: _room.availableBeds,
+          totalCapacity: _room.totalCapacity,
+        );
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('备注已清除'),
+          backgroundColor: RoomColors.available,
+        ),
+      );
+      RoomDataNotifier().notifyDataChanged();
+      widget.onRoomChanged?.call(widget.room);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('清除备注失败: ${response.message}'),
+          backgroundColor: RoomColors.occupied,
+        ),
+      );
+    }
   }
 
   Widget _buildBedItem({

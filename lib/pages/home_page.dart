@@ -570,7 +570,10 @@ class HomePageState extends State<HomePage> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => RoomGridPage(initialArea: area.code),
+            builder: (context) => RoomGridPage(
+              initialArea: area.code,
+              initialGender: 'male',
+            ),
           ),
         );
       },

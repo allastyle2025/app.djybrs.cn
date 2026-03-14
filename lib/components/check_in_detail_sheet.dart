@@ -66,6 +66,7 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
   late RoomCheckIn checkIn;
   late List<CheckInHistory> historyCheckIns;
   late Future<void> _loadDataFuture;
+  final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   bool _isExpanded = false;
   late StreamSubscription<void> _dataChangeSubscription;
 
@@ -127,12 +128,14 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // 计算已入住天数
-    final days = DateTime.now().difference(checkIn.checkInTime).inDays;
+@override
+Widget build(BuildContext context) {
+  // 计算已入住天数
+  final days = DateTime.now().difference(checkIn.checkInTime).inDays;
 
-    return SafeArea(
+  return SafeArea(
+    child: ScaffoldMessenger(
+      key: _scaffoldMessengerKey,
       child: FutureBuilder<void>(
         future: _loadDataFuture,
         builder: (context, snapshot) {
@@ -237,7 +240,6 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                                                   _formatPhoneNumber(checkIn.cphone),
                                                   onTap: () => _showCallConfirmDialog(checkIn.cphone),
                                                 ),
-
                                               ]),
                                               const SizedBox(height: 16),
                                               // 入住信息卡片
@@ -261,8 +263,7 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
                                                   '${_formatDate(checkIn.checkInTime)} ${_formatTime(checkIn.checkInTime)}',
                                                   onTap: () => _showCheckInTimeEditDialog(),
                                                 ),
-                                                if (checkIn.checkOutTime !=
-                                                    null) ...[
+                                                if (checkIn.checkOutTime != null) ...[
                                                   _buildDetailGridItem(
                                                     '退床时间',
                                                     '${_formatDate(checkIn.checkOutTime!)} ${_formatTime(checkIn.checkOutTime!)}',
@@ -374,10 +375,11 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
               ],
             ),
           );
-        },
-      ),
-    );
-  }
+        }, // 这里需要闭合 builder 回调
+      ), // 这里需要闭合 FutureBuilder
+    ), // 这里需要闭合 ScaffoldMessenger
+  ); // 这里需要闭合 SafeArea
+}
 
   /// 构建加载视图
   Widget _buildLoadingView() {
@@ -1262,20 +1264,14 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
             emergencyContactPhone: checkIn.emergencyContactPhone,
           );
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('身份更新成功')));
+        _scaffoldMessengerKey.currentState?.showSnackBar(const SnackBar(content: Text('身份更新成功')));
         // 通知父级刷新
         onPurposeUpdated?.call();
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('身份更新失败: ${response.message}')));
+        _scaffoldMessengerKey.currentState?.showSnackBar(SnackBar(content: Text('身份更新失败: ${response.message}')));
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('更新失败: $e')));
+      _scaffoldMessengerKey.currentState?.showSnackBar(SnackBar(content: Text('更新失败: $e')));
     }
   }
 
@@ -1394,20 +1390,14 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
             emergencyContactPhone: checkIn.emergencyContactPhone,
           );
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('入住时间更新成功')));
+        _scaffoldMessengerKey.currentState?.showSnackBar(const SnackBar(content: Text('入住时间更新成功')));
         // 通知父级刷新
         onPurposeUpdated?.call();
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('入住时间更新失败: ${response.message}')));
+        _scaffoldMessengerKey.currentState?.showSnackBar(SnackBar(content: Text('入住时间更新失败: ${response.message}')));
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('更新失败: $e')));
+      _scaffoldMessengerKey.currentState?.showSnackBar(SnackBar(content: Text('更新失败: $e')));
     }
   }
 
@@ -1442,20 +1432,14 @@ class _CheckInDetailSheetState extends State<CheckInDetailSheet> {
             emergencyContactPhone: checkIn.emergencyContactPhone,
           );
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('备注更新成功')));
+        _scaffoldMessengerKey.currentState?.showSnackBar(const SnackBar(content: Text('备注更新成功')));
         // 通知父级刷新
         onPurposeUpdated?.call();
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('备注更新失败: ${response.message}')));
+        _scaffoldMessengerKey.currentState?.showSnackBar(SnackBar(content: Text('备注更新失败: ${response.message}')));
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('更新失败: $e')));
+      _scaffoldMessengerKey.currentState?.showSnackBar(SnackBar(content: Text('更新失败: $e')));
     }
   }
 

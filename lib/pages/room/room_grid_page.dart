@@ -14,9 +14,10 @@ import '../../theme_manager.dart';
 
 class RoomGridPage extends StatefulWidget {
   final String? initialArea;
+  final String? initialGender;
   final VoidCallback? onDataChanged;
   
-  const RoomGridPage({super.key, this.initialArea, this.onDataChanged});
+  const RoomGridPage({super.key, this.initialArea, this.initialGender, this.onDataChanged});
 
   @override
   State<RoomGridPage> createState() => RoomGridPageState();
@@ -38,6 +39,10 @@ class RoomGridPageState extends State<RoomGridPage> {
     // 如果有传入初始区域，则使用
     if (widget.initialArea != null) {
       _filterArea = widget.initialArea!;
+    }
+    // 如果有传入初始性别，则使用
+    if (widget.initialGender != null) {
+      _filterGender = widget.initialGender!;
     }
     _loadRooms();
     _loadSettings();
@@ -512,7 +517,7 @@ class RoomGridPageState extends State<RoomGridPage> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            // 状态标签：维护中 > 满 > 地铺
+                            // 状态标签：维护中 > 满 > 地铺 > 备注
                             if (room.status == 'maintenance')
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
@@ -551,6 +556,15 @@ class RoomGridPageState extends State<RoomGridPage> {
                                 size: 14,
                                 color: RoomColors.textSecondary,
                               ),
+                            // 备注图标
+                            if (room.remark != null && room.remark!.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.note_outlined,
+                                size: 14,
+                                color: Colors.orange,
+                              ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 2),
@@ -628,7 +642,7 @@ class RoomGridPageState extends State<RoomGridPage> {
       room: room,
       areaName: areaName,
       genderColor: genderColor,
-      onRoomChanged: () {
+      onRoomChanged: (updatedRoom) {
         _loadRooms(); // 刷新 Grid
         widget.onDataChanged?.call(); // 通知首页刷新
       },

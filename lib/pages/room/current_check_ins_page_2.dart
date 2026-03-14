@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../components/change_room_sheet.dart';
 import '../../components/check_in_detail_sheet.dart';
@@ -8,7 +7,6 @@ import '../../models/room_check_in.dart';
 import '../../room_colors.dart';
 import '../../services/room_service.dart';
 import '../../services/room_data_notifier.dart';
-import '../dashboard_page.dart' show refreshPersonnelBadge;
 
 class CurrentCheckInsPage extends StatefulWidget {
   final VoidCallback? onDataChanged;
@@ -63,8 +61,6 @@ class CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
         if (_selectedCategory == '待审') {
           // 待审：过滤 PENDING 状态
           if (checkIn.status != 'PENDING') return false;
-        } else if (_selectedCategory == '全部') {
-          // 全部：不过滤状态
         } else {
           // 其他分类：过滤 purpose 字段，并只显示 CHECKED_IN 状态
           if (checkIn.status != 'CHECKED_IN') return false;
@@ -72,7 +68,7 @@ class CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
           String category = _mapPurposeToCategory(purpose);
           if (category != _selectedCategory) return false;
         }
-
+        
         // 搜索过滤
         if (checkIn.cname.toLowerCase().contains(lowerQuery)) return true;
         if (checkIn.cphone.toLowerCase().contains(lowerQuery)) return true;
@@ -87,7 +83,6 @@ class CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
     setState(() {
       _selectedCategory = category;
       _filterCheckIns(_searchController.text);
-      _isSidebarOpen = false;
     });
   }
 
@@ -111,9 +106,6 @@ class CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
 
   // 计算每个分类的数量
   int _getCategoryCount(String category) {
-    if (category == '全部') {
-      return _checkIns.length;
-    }
     if (category == '待审') {
       return _checkIns.where((checkIn) => checkIn.status == 'PENDING').length;
     }
@@ -123,11 +115,6 @@ class CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
       return _mapPurposeToCategory(purpose) == category;
     }).length;
   }
-
-  // 侧边栏展开状态
-  bool _isSidebarOpen = false;
-  static const double _sidebarMinWidth = 0;
-  static const double _sidebarMaxWidth = 210;
 
   Future<void> _loadData() async {
     setState(() {
@@ -142,8 +129,6 @@ class CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
       if (response.isSuccess) {
         _checkIns = response.data;
         _filterCheckIns(_searchController.text);
-        // 刷新 Dashboard 的人员 badge
-        refreshPersonnelBadge();
       } else {
         _errorMessage = response.message;
       }
@@ -154,41 +139,15 @@ class CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
   Future<void> refreshData() async {
     await _loadData();
   }
-  
-  /// 重置分类到待审核
-  void resetToPendingCategory() {
-    setState(() {
-      _selectedCategory = '待审';
-      _filterCheckIns(_searchController.text);
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
-    final allCategories = ['全部', _pendingCategory.first, ..._otherCategories];
-    final selectedIndex = allCategories.indexOf(_selectedCategory);
-
     return Scaffold(
       backgroundColor: RoomColors.background,
       appBar: AppBar(
         backgroundColor: RoomColors.cardBg,
         elevation: 0,
         iconTheme: IconThemeData(color: RoomColors.textPrimary),
-        leading: IconButton(
-          icon: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: Icon(
-              _isSidebarOpen ? Icons.menu_open_rounded : Icons.menu_rounded,
-              key: ValueKey(_isSidebarOpen),
-              color: RoomColors.textPrimary,
-            ),
-          ),
-          onPressed: () {
-            setState(() {
-              _isSidebarOpen = !_isSidebarOpen;
-            });
-          },
-        ),
         title: _isSearching
             ? TextField(
                 controller: _searchController,
@@ -202,34 +161,13 @@ class CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
                 style: TextStyle(color: RoomColors.textPrimary, fontSize: 16),
                 onChanged: _filterCheckIns,
               )
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _selectedCategory == '待审' ? '待审核' : _selectedCategory,
-                    style: TextStyle(
-                      color: RoomColors.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: _getCategoryColor(_selectedCategory, true).withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '${_getCategoryCount(_selectedCategory)}',
-                      style: TextStyle(
-                        color: _getCategoryColor(_selectedCategory, true),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+            : Text(
+                '在寺人员',
+                style: TextStyle(
+                  color: RoomColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
         actions: [
           IconButton(
@@ -252,45 +190,63 @@ class CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
         child: _isLoading
             ? Center(child: CircularProgressIndicator(color: RoomColors.primary))
             : _errorMessage.isNotEmpty
-                ? _buildErrorView()
-                : Stack(
-                    children: [
-                      Container(
-                        color: RoomColors.background,
-                        child: _buildContentArea(),
-                      ),
-                      AnimatedPositioned(
-                        duration: const Duration(milliseconds: 280),
-                        curve: Curves.easeInOutCubic,
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
-                        width: _isSidebarOpen ? _sidebarMaxWidth : _sidebarMinWidth,
-                        child: GestureDetector(
-                          onTap: () {},
-                          child: _buildSidebar(allCategories),
+            ? _buildErrorView()
+            : Row(
+                children: [
+                  // 左侧分类菜单
+                  Container(
+                    width: MediaQuery.of(context).size.width * 0.25,
+                    margin: const EdgeInsets.only(left: 4, top: 6, bottom: 6),
+                    decoration: BoxDecoration(
+                      color: RoomColors.cardBg,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
-                      ),
-                      if (_isSidebarOpen)
-                        Positioned.fill(
-                          left: _sidebarMaxWidth,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _isSidebarOpen = false;
-                              });
-                            },
-                            child: Container(
-                              color: Colors.transparent,
-                            ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        // 待审核分类（单独在上面）
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
+                          child: _buildCategoryItem(_pendingCategory.first),
+                        ),
+                        // 分隔线
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          child: Divider(
+                            height: 1,
+                            color: RoomColors.divider,
                           ),
                         ),
-                    ],
+                        // 其他分类（在下面）
+                        Expanded(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            itemCount: _otherCategories.length,
+                            itemBuilder: (context, index) {
+                              return _buildCategoryItem(_otherCategories[index]);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  // 右侧内容区域
+                  Expanded(
+                    child: _filteredCheckIns.isEmpty
+                        ? _buildEmptyView()
+                        : _buildListView(),
+                  ),
+                ],
+              ),
       ),
     );
   }
-
 
   Widget _buildCategoryItem(String category) {
     final isSelected = _selectedCategory == category;
@@ -370,334 +326,6 @@ class CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
             ),
           ],
         ),
-      )
-    );
-  }
-
-  Widget _buildCategoryChips(List<String> categories) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: categories.map((category) {
-            final isSelected = _selectedCategory == category;
-            final count = _getCategoryCount(category);
-            final color = _getCategoryColor(category, isSelected);
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text('$category $count'),
-                selected: isSelected,
-                selectedColor: color.withOpacity(0.2),
-                backgroundColor: RoomColors.cardBg,
-                labelStyle: TextStyle(
-                  color: isSelected ? color : RoomColors.textSecondary,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                ),
-                onSelected: (_) => _filterByCategory(category),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildContentArea() {
-    return Container(
-      color: RoomColors.background,
-      child: _filteredCheckIns.isEmpty ? _buildEmptyView() : _buildListView(),
-    );
-  }
-
-  Widget _buildSidebar(List<String> categories) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 280),
-      width: _isSidebarOpen ? _sidebarMaxWidth : _sidebarMinWidth,
-      curve: Curves.easeInOutCubic,
-      decoration: BoxDecoration(
-        color: RoomColors.cardBg,
-        borderRadius: BorderRadius.horizontal(
-          right: Radius.circular(_isSidebarOpen ? 20 : 8),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(_isSidebarOpen ? 0.12 : 0.06),
-            blurRadius: _isSidebarOpen ? 20 : 10,
-            offset: const Offset(4, 0),
-          ),
-        ],
-      ),
-      child: GestureDetector(
-        onHorizontalDragUpdate: (details) {
-          if (details.delta.dx > 8 && !_isSidebarOpen) {
-            setState(() {
-              _isSidebarOpen = true;
-            });
-          } else if (details.delta.dx < -8 && _isSidebarOpen) {
-            setState(() {
-              _isSidebarOpen = false;
-            });
-          }
-        },
-        child: Column(
-          children: [
-            _buildSidebarHeader(),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                children: categories.map(_buildSidebarItem).toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSidebarHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: RoomColors.divider.withOpacity(0.5),
-            width: 1,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          if (_isSidebarOpen) ...[
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [RoomColors.primary, RoomColors.primary.withOpacity(0.7)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.dashboard_rounded,
-                color: Colors.white,
-                size: 18,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                '人员分类',
-                style: TextStyle(
-                  color: RoomColors.textPrimary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSidebarFooter() {
-    if (!_isSidebarOpen) return const SizedBox.shrink();
-    
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(
-            color: RoomColors.divider.withOpacity(0.5),
-            width: 1,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.swipe_right_rounded,
-            size: 16,
-            color: RoomColors.textGrey,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '左右滑动展开/收起',
-            style: TextStyle(
-              fontSize: 11,
-              color: RoomColors.textGrey,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSidebarItem(String category) {
-    final isSelected = _selectedCategory == category;
-    final count = _getCategoryCount(category);
-    final color = _getCategoryColor(category, isSelected);
-    final displayName = category == '待审' ? '待审核' : category;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        decoration: BoxDecoration(
-          color: isSelected 
-              ? color.withOpacity(0.15)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: isSelected
-              ? Border.all(color: color.withOpacity(0.3), width: 1)
-              : null,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: () => _filterByCategory(category),
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: _isSidebarOpen ? 8 : 6, 
-                vertical: 8,
-              ),
-              child: Row(
-                mainAxisAlignment: _isSidebarOpen 
-                    ? MainAxisAlignment.start 
-                    : MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: isSelected 
-                          ? color.withOpacity(0.2)
-                          : RoomColors.background,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Center(
-                      child: _buildCategoryIcon(category, isSelected, color, count),
-                    ),
-                  ),
-                  if (_isSidebarOpen) ...[
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        displayName,
-                        style: TextStyle(
-                          color: isSelected ? color : RoomColors.textPrimary,
-                          fontSize: 13,
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$count',
-                      style: TextStyle(
-                        color: isSelected ? color : RoomColors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
-                      ),
-                    ),
-                    if (isSelected)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 2),
-                        child: Icon(
-                          Icons.check_circle_rounded,
-                          color: color,
-                          size: 14,
-                        ),
-                      ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryIcon(String category, bool isSelected, Color color, int count) {
-    final iconColor = isSelected ? color : RoomColors.textSecondary;
-    final iconSize = _isSidebarOpen ? 16.0 : 18.0;
-    
-    switch (category) {
-      case '待审':
-        return _buildBadgeIcon(count, iconColor, iconSize);
-      case '师父':
-        return _buildCharIcon('师', iconColor, iconSize);
-      case '义工':
-        return Icon(Icons.volunteer_activism_rounded, color: iconColor, size: iconSize);
-      case '学修':
-        return Icon(Icons.school_rounded, color: iconColor, size: iconSize);
-      case '常住':
-        return Icon(Icons.home_rounded, color: iconColor, size: iconSize);
-      case '其它':
-        return Icon(Icons.more_horiz_rounded, color: iconColor, size: iconSize);
-      default:
-        return Icon(Icons.category_rounded, color: iconColor, size: iconSize);
-    }
-  }
-
-  Widget _buildBadgeIcon(int count, Color color, double size) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Icon(Icons.pending_actions_rounded, color: color, size: size),
-        if (count > 0)
-          Positioned(
-            right: -6,
-            top: -6,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: BoxDecoration(
-                color: Colors.red,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              constraints: const BoxConstraints(minWidth: 16),
-              child: Text(
-                count > 99 ? '99+' : '$count',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildCharIcon(String char, Color color, double size) {
-    return Container(
-      width: size + 4,
-      height: size + 4,
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Center(
-        child: Text(
-          char,
-          style: TextStyle(
-            color: color,
-            fontSize: size * 0.7,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
       ),
     );
   }
@@ -732,69 +360,34 @@ class CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
   }
 
   Widget _buildEmptyView() {
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      color: RoomColors.primary,
-      displacement: 60,
-      strokeWidth: 2.5,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: constraints.maxHeight,
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.people_outline, size: 64, color: RoomColors.divider),
-                    const SizedBox(height: 16),
-                    Text(
-                      '暂无人员',
-                      style: TextStyle(color: RoomColors.textSecondary, fontSize: 16),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _selectedCategory = '全部';
-                          _filterCheckIns(_searchController.text);
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: RoomColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: Text('查看全部', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.people_outline, size: 64, color: RoomColors.divider),
+          const SizedBox(height: 16),
+          Text(
+            '暂无在寺人员',
+            style: TextStyle(color: RoomColors.textSecondary, fontSize: 16),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildListView() {
+    // 如果是待审分类，使用单独的列表
     if (_selectedCategory == '待审') {
       return _buildPendingListView();
     }
-
-    final listToShow = _selectedCategory == '全部'
-        ? _filteredCheckIns
-        : _filteredCheckIns.where((checkIn) {
-            return checkIn.status == 'CHECKED_IN';
-          }).toList();
-
-    final sortedCheckIns = List<RoomCheckIn>.from(listToShow)
+    
+    // 其他分类的列表
+    final activeCheckIns = _filteredCheckIns.where((checkIn) {
+      return checkIn.status == 'CHECKED_IN';
+    }).toList();
+    
+    // 按入住时间倒序排序，最新入住的排在前面
+    final sortedCheckIns = List<RoomCheckIn>.from(activeCheckIns)
       ..sort((a, b) => b.checkInTime.compareTo(a.checkInTime));
 
     return RefreshIndicator(
@@ -803,10 +396,11 @@ class CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
       displacement: 60,
       strokeWidth: 2.5,
       child: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.all(4),
         itemCount: sortedCheckIns.length,
         itemBuilder: (context, index) {
           final checkIn = sortedCheckIns[index];
+          // 编号从大到小（最新的编号最大）
           final displayIndex = sortedCheckIns.length - index;
           return _buildCheckInItem(checkIn, displayIndex);
         },
@@ -824,35 +418,17 @@ class CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
       ..sort((a, b) => b.checkInTime.compareTo(a.checkInTime));
 
     if (sortedCheckIns.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _loadData,
-        color: Colors.red,
-        displacement: 60,
-        strokeWidth: 2.5,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.check_circle_outline, size: 64, color: RoomColors.available),
-                      const SizedBox(height: 16),
-                      Text(
-                        '暂无待审核人员',
-                        style: TextStyle(color: RoomColors.textSecondary, fontSize: 16),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.check_circle_outline, size: 64, color: RoomColors.available),
+            const SizedBox(height: 16),
+            Text(
+              '暂无待审核人员',
+              style: TextStyle(color: RoomColors.textSecondary, fontSize: 16),
+            ),
+          ],
         ),
       );
     }
@@ -1163,291 +739,291 @@ class CurrentCheckInsPageState extends State<CurrentCheckInsPage> {
         return purpose;
     }
   }
-Widget _buildCheckInItem(RoomCheckIn checkIn, int index) {
-  final stayTimeText = _calculateStayDays(checkIn.checkInTime);
-  final purposeColor = checkIn.purpose != null && checkIn.purpose!.isNotEmpty
-      ? _getPurposeColor(checkIn.purpose!)
-      : RoomColors.primary;
 
-  return GestureDetector(
+  Widget _buildCheckInItem(RoomCheckIn checkIn, int index) {
+    // 计算已入住时间显示
+    final stayTimeText = _calculateStayDays(checkIn.checkInTime);
+
+    return GestureDetector(
       onTap: () => _showCheckInDetail(checkIn),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: RoomColors.cardBg,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Stack(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+        decoration: BoxDecoration(
+          color: RoomColors.cardBg,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          // 使用条件判断控制头像显示
-                          if (_showAvatar) ...[
-                            // 头像（性别图标）
-                            Container(
-                              width: 52,
-                              height: 52,
-                              decoration: BoxDecoration(
-                                color: checkIn.genderColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(26),
-                              ),
-                              child: Center(
-                                child: Icon(
-                                  checkIn.cgender == 'male'
-                                      ? Icons.person
-                                      : Icons.person,
-                                  size: 28,
-                                  color: checkIn.genderColor,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                          ],
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // 姓名、性别标签
-                                Row(
-                                  children: [
-                                    // 姓名
-                                    Text(
-                                      checkIn.cname,
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: RoomColors.textPrimary,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    // 性别标签
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: checkIn.genderColor.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            checkIn.cgender == 'male'
-                                                ? Icons.male
-                                                : Icons.female,
-                                            size: 12,
-                                            color: checkIn.genderColor,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            checkIn.genderDisplayName,
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: checkIn.genderColor,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          // 年龄
-                                          if (checkIn.cage != null) ...[
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              '${checkIn.cage}岁',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: RoomColors.textSecondary,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                      // 使用条件判断控制头像显示
+                      if (_showAvatar) ...[
+                        // 头像（性别图标）
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: checkIn.genderColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: Center(
+                            child: Icon(
+                              checkIn.cgender == 'male'
+                                  ? Icons.person
+                                  : Icons.person,
+                              size: 28,
+                              color: checkIn.genderColor,
                             ),
                           ),
-                          // 占位，给右上角标签留空间
-                          const SizedBox(width: 50),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      // 底部信息栏
-                      Row(
-                        children: [
-                          if (_showAvatar) const SizedBox(width: 68),
-                          Expanded(
-                            child: Row(
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 姓名、性别标签
+                            Row(
                               children: [
-                                // 房间号
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
+                                // 姓名
+                            Text(
+                              checkIn.cname,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: RoomColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // 性别标签
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: checkIn.genderColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    checkIn.cgender == 'male'
+                                        ? Icons.male
+                                        : Icons.female,
+                                    size: 12,
+                                    color: checkIn.genderColor,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: RoomColors.background,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.meeting_room_outlined,
-                                        size: 12,
-                                        color: RoomColors.textSecondary,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${checkIn.areaDisplayName}-${checkIn.roomNumber}',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: RoomColors.textSecondary,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                // 身份badge
-                                if (checkIn.purpose != null && checkIn.purpose!.isNotEmpty) ...[
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3,
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    checkIn.genderDisplayName,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: checkIn.genderColor,
+                                      fontWeight: FontWeight.w500,
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: _getPurposeColor(checkIn.purpose!).withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      _getPurposeDisplayName(checkIn.purpose!),
+                                  ),
+                                  // 年龄
+                                  if (checkIn.cage != null) ...[
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${checkIn.cage}岁',
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: _getPurposeColor(checkIn.purpose!),
+                                        color: RoomColors.textSecondary,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                  ),
+                                  ],
                                 ],
-                                // 备注 Badge（如果有）
-                                if (checkIn.remark != null && checkIn.remark!.isNotEmpty) ...[
-                                  if ((checkIn.status != 'CHECKED_IN') || (checkIn.purpose != null && checkIn.purpose!.isNotEmpty)) const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.note_outlined,
-                                          size: 11,
-                                          color: Colors.orange.shade600,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '注',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.orange.shade600,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                              ),
+                            ),
                               ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 6),
+                            // 手机号
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.phone_outlined,
+                                  size: 14,
+                                  color: RoomColors.textSecondary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  checkIn.cphone,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: RoomColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
+                      // 占位，给右上角标签留空间
+                      const SizedBox(width: 50),
                     ],
                   ),
-                ),
-                // 已入住天数标签 - 右上角（使用编号原来的样式）
-                if (stayTimeText.isNotEmpty)
-                  Positioned(
-                    top: 16,
-                    right: 16,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: RoomColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        stayTimeText,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: RoomColors.primary,
-                          fontWeight: FontWeight.w600,
+                  const SizedBox(height: 12),
+                  // 底部信息栏
+                  Row(
+                    children: [
+                      // 区域-房间号
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: RoomColors.background,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.meeting_room_outlined,
+                              size: 12,
+                              color: RoomColors.textSecondary,
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              '${checkIn.areaDisplayName}-${checkIn.roomNumber}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: RoomColors.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ),
-                // 状态标签 - 右上角（入住时间下方）
-                if (checkIn.status != 'CHECKED_IN')
-                  Positioned(
-                    top: stayTimeText.isNotEmpty ? 44 : 16,
-                    right: 16,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _getStatusColor(checkIn.status).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        checkIn.statusDisplayName,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: _getStatusColor(checkIn.status),
-                          fontWeight: FontWeight.w500,
+                      const SizedBox(width: 6),
+                      // 身份badge
+                      if (checkIn.purpose != null && checkIn.purpose!.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _getPurposeColor(checkIn.purpose!).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            _getPurposeDisplayName(checkIn.purpose!),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _getPurposeColor(checkIn.purpose!),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+                      ],
+                      // 状态标签（入住中不显示，已移到右上角）
+                      // 备注 Badge（如果有）
+                      if (checkIn.remark != null && checkIn.remark!.isNotEmpty) ...[
+                        if ((checkIn.status != 'CHECKED_IN') || (checkIn.purpose != null && checkIn.purpose!.isNotEmpty)) const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.note_outlined,
+                                size: 11,
+                                color: Colors.orange.shade600,
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                '注',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.orange.shade600,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                // 编号标签 - 右下角
-                Positioned(
-                  bottom: 16,
-                  right: 16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: RoomColors.textGrey.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'No.$index',
-                      style: TextStyle(fontSize: 11, color: RoomColors.textGrey),
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+            // 已入住天数标签 - 右上角（使用编号原来的样式）
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: RoomColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  stayTimeText,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: RoomColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            // 状态标签 - 右上角（入住时间下方）
+            if (checkIn.status != 'CHECKED_IN')
+              Positioned(
+                top: 36,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(checkIn.status).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    checkIn.statusDisplayName,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: _getStatusColor(checkIn.status),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            // 编号标签 - 右下角
+            Positioned(
+              bottom: 12,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: RoomColors.textGrey.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'No.$index',
+                  style: TextStyle(fontSize: 11, color: RoomColors.textGrey),
+                ),
+              ),
+            ),
+          ],
         ),
-      );
-    
+      ),
+    );
   }
 
   String _formatDate(DateTime date) {
@@ -1562,6 +1138,8 @@ Widget _buildCheckInItem(RoomCheckIn checkIn, int index) {
     final minutes = difference.inMinutes;
     final hours = difference.inHours;
     final days = difference.inDays;
+    final years = days ~/ 365;
+    final remainingDays = days % 365;
     
     if (seconds < 60) {
       return '${seconds}秒前';
@@ -1571,8 +1149,12 @@ Widget _buildCheckInItem(RoomCheckIn checkIn, int index) {
       return '${hours}小时前';
     } else if (days == 1) {
       return '1天';
+    } else if (years == 0) {
+      return '$days天';
+    } else if (remainingDays == 0) {
+      return '$years年';
     } else {
-      return '';
+      return '$years年$remainingDays天';
     }
   }
 
