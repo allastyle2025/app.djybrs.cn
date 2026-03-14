@@ -134,22 +134,24 @@ class NotificationService {
     // 如果 eventType 为空，尝试从 JSON 数据中的 type 字段获取
     String? eventType = _pendingEventType;
 
+    // 打印原始数据
+    print('SSE原始数据: $data');
+
     // 尝试解析 JSON
     dynamic jsonData;
     try {
       jsonData = jsonDecode(data);
-      print('📨 SSE JSON 解析成功: $jsonData');
       // 如果 eventType 为空，从 JSON 中的 type 字段获取
       if (eventType == null || eventType.isEmpty) {
         eventType = jsonData['type'];
         print('📨 SSE 从 JSON 中获取事件类型: $eventType');
       }
     } catch (e) {
-      print('📨 SSE JSON 解析失败，当作文本: $e');
+      print('📨 SSE 数据不是 JSON 格式，当作文本处理');
       jsonData = {'message': data};
     }
 
-    print('📨 SSE 处理消息 - 事件: $eventType, 数据: $data');
+    print('📨 SSE 处理消息 - 事件: $eventType');
 
     // 处理连接成功消息
     if (data == '连接成功') {
@@ -222,6 +224,26 @@ class NotificationService {
           unreadCount: 1,
           assistantType: AssistantType.room, // 设置助手类型为房间
           sourceId: jsonData['data']?['checkInId']?.toString(),
+          extraData: jsonData,
+        );
+
+      case 'allas_group':
+      case 'allasGroup':
+        print('📨 创建 Allas 群消息');
+        return Message(
+          id: id,
+          senderId: jsonData['senderId']?.toString() ?? 'system',
+          senderName: jsonData['title'] ?? 'Allas群消息',
+          senderAvatar: jsonData['senderAvatar']?.toString() ?? 'https://picsum.photos/seed/allas/100/100',
+          content: jsonData['message'] ?? '新的群消息',
+          timestamp: jsonData['timestamp'] != null
+              ? DateTime.fromMillisecondsSinceEpoch(jsonData['timestamp'])
+              : timestamp,
+          isRead: false,
+          type: MessageType.system,
+          unreadCount: 1,
+          assistantType: AssistantType.allasGroup,
+          sourceId: jsonData['data']?['groupId']?.toString(),
           extraData: jsonData,
         );
 

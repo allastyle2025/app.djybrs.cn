@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/message.dart';
 import '../room_colors.dart';
 import '../services/local_message_service.dart';
+import '../services/message_sender_service.dart';
 
 class ChatPage extends StatefulWidget {
   final AssistantType assistantType;
@@ -313,6 +314,8 @@ class _ChatPageState extends State<ChatPage> {
         return const Color(0xFFFFA500); // 黄色
       case AssistantType.room:
         return const Color(0xFF4CAF50); // 绿色
+      case AssistantType.allasGroup:
+        return const Color(0xFF2196F3); // 蓝色
       case AssistantType.system:
       default:
         return const Color(0xFF07C160); // 微信绿
@@ -326,6 +329,8 @@ class _ChatPageState extends State<ChatPage> {
         return Icons.volunteer_activism;
       case AssistantType.room:
         return Icons.meeting_room;
+      case AssistantType.allasGroup:
+        return Icons.group;
       case AssistantType.system:
       default:
         return Icons.notifications;
@@ -339,6 +344,8 @@ class _ChatPageState extends State<ChatPage> {
         return '义工申请助手';
       case AssistantType.room:
         return '房间小助手';
+      case AssistantType.allasGroup:
+        return 'Allas群助手';
       case AssistantType.system:
       default:
         return '系统通知';
@@ -424,7 +431,15 @@ class _ChatPageState extends State<ChatPage> {
 
     // 保存消息到本地存储
     await LocalMessageService.saveChatMessage(widget.assistantId, tempMessage);
-    
+
+    // 如果是 allasGroup 类型，发送到后端
+    if (widget.assistantType == AssistantType.allasGroup) {
+      await MessageSenderService.sendAllasGroupMessage(
+        title: widget.assistantName,
+        message: text,
+      );
+    }
+
     print('💬 发送消息到助手 ${widget.assistantName}: $text');
   }
 
@@ -707,11 +722,11 @@ class _ChatPageState extends State<ChatPage> {
         children: [
           if (!isMe) ...[
             // 对方头像（助手头像）- 与消息列表保持一致
-            if (widget.assistantType == AssistantType.system)
+            if (widget.assistantType == AssistantType.system || widget.assistantType == AssistantType.allasGroup)
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
                 child: Image.network(
-                  'https://picsum.photos/seed/${message.id}/100/100',
+                  widget.assistantAvatar,
                   width: 44,
                   height: 44,
                   fit: BoxFit.cover,
@@ -810,6 +825,21 @@ class _ChatPageState extends State<ChatPage> {
 
   /// 构建助手消息卡片（现代化卡片设计）
   Widget _buildAssistantMessageCard(Message message) {
+    // allasGroup 类型使用微信样式（简单文本）
+    if (message.assistantType == AssistantType.allasGroup) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Text(
+          message.content,
+          style: const TextStyle(
+            fontSize: 15,
+            color: Colors.black87,
+            height: 1.4,
+          ),
+        ),
+      );
+    }
+
     // 从extraData中提取申请信息
     final extraData = message.extraData ?? {};
     final data = extraData['data'] ?? extraData;
@@ -818,24 +848,24 @@ class _ChatPageState extends State<ChatPage> {
     final applicationId = data['applicationId'] ?? data['checkInId'] ?? data['id'] ?? '';
     final applicantGender = data['gender']?.toString() ?? '';
     final applicantAge = data['age']?.toString() ?? '';
-    
+
     // 从extraData的type字段或message.assistantType判断类型
     final eventType = extraData['type']?.toString() ?? '';
-    final isVolunteer = eventType == 'volunteer_application' || 
+    final isVolunteer = eventType == 'volunteer_application' ||
                         message.assistantType == AssistantType.volunteer;
-    
+
     // 根据类型选择主题色
-    final themeColor = isVolunteer 
-        ? Colors.amber[700]! 
-        : message.assistantType == AssistantType.room 
-            ? Colors.green[700]! 
+    final themeColor = isVolunteer
+        ? Colors.amber[700]!
+        : message.assistantType == AssistantType.room
+            ? Colors.green[700]!
             : RoomColors.primary;
-    final themeColorLight = isVolunteer 
-        ? Colors.amber.withOpacity(0.1) 
-        : message.assistantType == AssistantType.room 
-            ? Colors.green.withOpacity(0.1) 
+    final themeColorLight = isVolunteer
+        ? Colors.amber.withOpacity(0.1)
+        : message.assistantType == AssistantType.room
+            ? Colors.green.withOpacity(0.1)
             : RoomColors.primary.withOpacity(0.1);
-    
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Column(
@@ -858,8 +888,8 @@ class _ChatPageState extends State<ChatPage> {
             child: Row(
               children: [
                 Icon(
-                  isVolunteer 
-                    ? Icons.volunteer_activism_outlined 
+                  isVolunteer
+                    ? Icons.volunteer_activism_outlined
                     : Icons.meeting_room_outlined,
                   size: 18,
                   color: themeColor,

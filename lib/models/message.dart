@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 /// 助手类型
 enum AssistantType {
-  volunteer,  // 义工申请小助手
-  room,       // 房间小助手
-  system,     // 系统通知
+  volunteer,   // 义工申请小助手
+  room,        // 房间小助手
+  allasGroup,  // allas群消息
+  system,      // 系统通知
 }
 
 class Message {
@@ -63,6 +64,8 @@ class Message {
         return 'assistant_volunteer';
       case AssistantType.room:
         return 'assistant_room';
+      case AssistantType.allasGroup:
+        return 'assistant_allas_group';
       case AssistantType.system:
         return senderId;
     }
@@ -139,6 +142,9 @@ class Message {
       case 'room':
       case 'room_checkin':
         return AssistantType.room;
+      case 'allas_group':
+      case 'allasGroup':
+        return AssistantType.allasGroup;
       case 'system':
         return AssistantType.system;
       default:
@@ -186,12 +192,22 @@ class AssistantConfig {
     description: '处理入住登记相关消息',
   );
 
+  static const allasGroup = AssistantConfig(
+    type: AssistantType.allasGroup,
+    id: 'assistant_allas_group',
+    name: 'Allas群消息',
+    avatar: 'https://picsum.photos/seed/allas_group/100/100',
+    description: 'Allas群组消息通知',
+  );
+
   static AssistantConfig getConfig(AssistantType type) {
     switch (type) {
       case AssistantType.volunteer:
         return volunteer;
       case AssistantType.room:
         return room;
+      case AssistantType.allasGroup:
+        return allasGroup;
       case AssistantType.system:
         return const AssistantConfig(
           type: AssistantType.system,

@@ -52,6 +52,17 @@ dependencies:
 
   # 获取应用包信息
   package_info_plus: ^8.0.0  # 取消注释以获取真实版本
+  
+  # 本地通知（系统通知栏）
+  flutter_local_notifications: ^17.2.1+2
+  
+  # 获取应用权限
+  permission_handler: ^11.3.1
+  
+  # Firebase 推送通知
+  firebase_core: ^3.1.1
+  firebase_messaging: ^15.0.2
+  
   # Microsoft Fluent Design UI
   #fluent_ui: ^4.8.0
 

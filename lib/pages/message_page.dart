@@ -6,6 +6,7 @@ import '../models/message.dart';
 import '../room_colors.dart';
 import '../services/message_service.dart';
 import '../services/notification_service.dart';
+import '../services/notification_display_service.dart';
 import '../services/local_message_service.dart';
 import '../utils/page_route.dart';
 import 'chat_page.dart';
@@ -697,6 +698,18 @@ class MessagePageState extends State<MessagePage> {
                       });
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('测试消息已添加')),
+                      );
+                    },
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.notifications_active,
+                    title: '测试系统通知',
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      // 发送系统通知
+                      NotificationDisplayService().showTestNotification();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('系统通知已发送，请查看通知栏')),
                       );
                     },
                   ),

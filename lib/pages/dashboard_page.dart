@@ -10,6 +10,7 @@ import '../models/message.dart';
 import '../room_colors.dart';
 import '../services/auth_service.dart';
 import '../services/local_message_service.dart';
+import '../services/notification_display_service.dart';
 import '../services/notification_service.dart';
 import '../services/room_service.dart';
 import '../theme_manager.dart';
@@ -103,6 +104,9 @@ class _DashboardPageState extends State<DashboardPage> {
   final NotificationService _notificationService = NotificationService();
   StreamSubscription<Message>? _messageSubscription;
   StreamSubscription<bool>? _connectionStatusSubscription;
+  
+  // 系统通知显示服务
+  final NotificationDisplayService _notificationDisplayService = NotificationDisplayService();
   final GlobalKey<CurrentCheckInsPageState> _currentKey = GlobalKey<CurrentCheckInsPageState>();
   final GlobalKey<RoomGridPageState> _roomGridKey = GlobalKey<RoomGridPageState>();
   final GlobalKey<ToolsPageState> _toolsKey = GlobalKey<ToolsPageState>();
@@ -201,6 +205,9 @@ class _DashboardPageState extends State<DashboardPage> {
     
     // 初始化 SSE 连接（无论消息Tab是否显示，都要连接SSE）
     _initNotificationService();
+    
+    // 初始化系统通知服务
+    _notificationDisplayService.initialize();
   }
   
   /// 初始化 SSE 通知服务
@@ -215,16 +222,18 @@ class _DashboardPageState extends State<DashboardPage> {
     // 监听新消息
     _messageSubscription = _notificationService.messageStream.listen(
       (newMessage) async {
-        print('📨 Dashboard 收到新消息: ${newMessage.content}');
-        print('📨 Dashboard 助手类型: ${newMessage.assistantType}');
-        
+        print('收到消息: ${newMessage.content}');
+
         // 保存消息到本地
         await LocalMessageService.saveMessage(newMessage);
         await LocalMessageService.saveChatMessage(newMessage.assistantId, newMessage);
-        
+
         // 刷新消息badge
         _loadUnreadCount();
-        
+
+        // 显示系统通知（即使应用在后台也能收到）
+        await _notificationDisplayService.showMessageNotification(newMessage);
+
         // 如果是入住登记消息，刷新人员页面
         if (newMessage.type == 'room_checkin') {
           print('🏨 Dashboard 收到入住登记消息，刷新人员页面');

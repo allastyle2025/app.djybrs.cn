@@ -135,27 +135,34 @@ class LocalMessageService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final key = '$_chatHistoryKey$assistantId';
-      
+
       print('🐛 saveChatMessage - 助手ID: $assistantId, 消息ID: ${message.id}, 内容: ${message.content}');
-      
+
       // 获取现有的聊天记录
       final existingChatJson = prefs.getStringList(key) ?? [];
       print('🐛 saveChatMessage - 现有 ${existingChatJson.length} 条消息');
-      
+
       final List<Message> existingChat = existingChatJson
           .map((json) => Message.fromJson(jsonDecode(json)))
           .toList();
-      
+
+      // 检查是否已存在相同 ID 的消息（避免重复保存）
+      final exists = existingChat.any((msg) => msg.id == message.id);
+      if (exists) {
+        print('🐛 saveChatMessage - 消息ID ${message.id} 已存在，跳过保存');
+        return;
+      }
+
       // 添加新消息
       existingChat.add(message);
-      
+
       // 保存回本地存储
       final updatedChatJson = existingChat
           .map((msg) => jsonEncode(msg.toJson()))
           .toList();
-      
+
       await prefs.setStringList(key, updatedChatJson);
-      
+
       print('💬 聊天消息已保存 (助手: $assistantId): ${message.content}, 总共 ${existingChat.length} 条');
     } catch (e) {
       print('❌ 保存聊天消息失败: $e');
