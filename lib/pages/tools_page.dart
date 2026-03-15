@@ -7,6 +7,8 @@ import 'room/check_in_registration_page.dart';
 import 'room/current_check_ins_page.dart';
 import 'cgh_user_management_page.dart';
 import 'volunteer_application_page.dart';
+import 'inventory/warehouse_home_page.dart';
+import 'schedule/schedule_page.dart';
 
 class ToolsPage extends StatefulWidget {
   const ToolsPage({super.key});
@@ -93,6 +95,32 @@ class ToolsPageState extends State<ToolsPage> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const CurrentCheckInsPage(),
+                      ),
+                    );
+                  },
+                ),
+                _buildQuickAccessItem(
+                  icon: Icons.warehouse_outlined,
+                  label: '库房管理',
+                  color: Colors.orange,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const WarehouseHomePage(),
+                      ),
+                    );
+                  },
+                ),
+                _buildQuickAccessItem(
+                  icon: Icons.schedule_outlined,
+                  label: '排班管理',
+                  color: Colors.purple,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SchedulePage(),
                       ),
                     );
                   },
@@ -212,18 +240,30 @@ class ToolsPageState extends State<ToolsPage> {
           MenuSection(
             title: '管理',
             items: [
-              // MenuItem(
-              //   icon: Icons.bed_outlined,
-              //   title: '义工申请表',
-              //   onTap: () {
-              //     Navigator.push(
-              //       context,
-              //       MaterialPageRoute(
-              //         builder: (context) => const VolunteerApplicationPage(),
-              //       ),
-              //     );
-              //   },
-              // ),
+              MenuItem(
+                icon: Icons.warehouse_outlined,
+                title: '库房管理',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const WarehouseHomePage(),
+                    ),
+                  );
+                },
+              ),
+              MenuItem(
+                icon: Icons.schedule_outlined,
+                title: '排班管理',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SchedulePage(),
+                    ),
+                  );
+                },
+              ),
               MenuItem(
                 icon: Icons.people_outline,
                 title: '人员管理',

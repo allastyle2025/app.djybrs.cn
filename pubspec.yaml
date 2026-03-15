@@ -65,6 +65,9 @@ dependencies:
   
   # Microsoft Fluent Design UI
   #fluent_ui: ^4.8.0
+  
+  # TDesign Flutter - 腾讯企业级UI组件库
+  tdesign_flutter: ^0.2.7
 
 dev_dependencies:
   flutter_test:
